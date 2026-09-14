@@ -19,6 +19,17 @@ export function validRegisterPayload(overrides: Partial<Record<string, string>> 
   };
 }
 
+export function validItemPayload(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    title: 'Scientific Calculator',
+    description: 'Good condition, suitable for engineering courses.',
+    category: 'Electronics',
+    location: 'Unity Hall',
+    borrowType: 'FREE',
+    ...overrides,
+  };
+}
+
 export function extractCookie(res: Response, name: string): string | undefined {
   const rawCookies = res.headers['set-cookie'];
   const cookies: string[] = Array.isArray(rawCookies) ? rawCookies : rawCookies ? [rawCookies] : [];
