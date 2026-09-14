@@ -6,6 +6,6 @@ export default defineConfig({
   out: './src/db/migrations',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? 'postgresql://borrowcircle:borrowcircle@localhost:5432/borrowcircle',
+    url: process.env.DATABASE_URL ?? 'postgresql://borrowcircle:borrowcircle@localhost:5433/borrowcircle',
   },
 });

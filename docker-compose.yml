@@ -7,9 +7,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-borrowcircle}
       POSTGRES_DB: ${POSTGRES_DB:-borrowcircle}
     ports:
-      - "5432:5432"
+      # Host port is remapped because a native (non-Docker) PostgreSQL was
+      # already bound to 5432 on this machine; override with
+      # POSTGRES_HOST_PORT if you need a different one.
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./Backend/scripts/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
 
 volumes:
   postgres_data:
