@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import { env, isProduction, isTest } from './config/env';
 import healthRoutes from './routes/healthRoutes';
 import authRoutes from './routes/auth.routes';
+import usersRoutes from './routes/users.routes';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { errorHandler } from './middleware/errorHandler';
 
@@ -23,6 +24,7 @@ export function createApp(): Application {
 
   app.use(healthRoutes);
   app.use(authRoutes);
+  app.use(usersRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

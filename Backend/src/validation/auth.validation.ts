@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { isAllowedEmailDomain } from '../services/auth.service';
-
-const PHONE_REGEX = /^(\+233\d{9}|0\d{9})$/;
+import { LOCATIONS } from '../constants/locations';
+import { PHONE_REGEX } from '../constants/phone';
 
 const email = z
   .string({ required_error: 'Email is required' })
@@ -23,10 +23,10 @@ export const registerSchema = z.object({
     .min(2, 'Full name must be at least 2 characters'),
   email,
   password,
-  location: z
-    .string({ required_error: 'Location is required' })
-    .trim()
-    .min(1, 'Location is required'),
+  location: z.enum(LOCATIONS, {
+    required_error: 'Location is required',
+    invalid_type_error: 'Select a valid location',
+  }),
   phoneNumber: z
     .string({ required_error: 'Phone number is required' })
     .trim()
