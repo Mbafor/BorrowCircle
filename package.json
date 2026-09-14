@@ -8,6 +8,9 @@
     "Backend"
   ],
   "scripts": {
+    "prepare": "husky",
+    "lint": "npm run lint --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
     "dev:server": "npm run dev --workspace=backend",
     "dev:client": "npm run dev --workspace=frontend",
     "build:server": "npm run build --workspace=backend",
@@ -17,5 +20,8 @@
     "db:generate": "npm run db:generate --workspace=backend",
     "db:migrate": "npm run db:migrate --workspace=backend",
     "db:studio": "npm run db:studio --workspace=backend"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
   }
 }
