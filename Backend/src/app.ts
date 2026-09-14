@@ -8,6 +8,7 @@ import healthRoutes from './routes/healthRoutes';
 import authRoutes from './routes/auth.routes';
 import usersRoutes from './routes/users.routes';
 import itemsRoutes from './routes/items.routes';
+import requestsRoutes from './routes/requests.routes';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { errorHandler } from './middleware/errorHandler';
 
@@ -27,6 +28,7 @@ export function createApp(): Application {
   app.use(authRoutes);
   app.use(usersRoutes);
   app.use(itemsRoutes);
+  app.use(requestsRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

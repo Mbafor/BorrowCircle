@@ -1,9 +1,10 @@
 import { db } from '../../src/config/db';
-import { items, passwordResetTokens, refreshTokens, users } from '../../src/db/schema';
+import { borrowRequests, items, passwordResetTokens, refreshTokens, users } from '../../src/db/schema';
 
 export async function clearDatabase(): Promise<void> {
   await db.delete(passwordResetTokens);
   await db.delete(refreshTokens);
+  await db.delete(borrowRequests);
   await db.delete(items);
   await db.delete(users);
 }
@@ -33,6 +34,42 @@ export async function insertItem(options: InsertItemOptions): Promise<string> {
       status: options.status ?? 'AVAILABLE',
       ...(options.pricePerDay !== undefined ? { pricePerDay: options.pricePerDay } : {}),
       ...(options.createdAt ? { createdAt: options.createdAt } : {}),
+    })
+    .returning();
+  return row.id;
+}
+
+export type BorrowRequestStatus =
+  | 'PENDING'
+  | 'ACCEPTED'
+  | 'DECLINED'
+  | 'EXPIRED'
+  | 'CANCELLED'
+  | 'BORROWED'
+  | 'RETURNED'
+  | 'OVERDUE';
+
+export interface InsertBorrowRequestOptions {
+  itemId: string;
+  borrowerId: string;
+  status?: BorrowRequestStatus;
+  pickupDate?: string;
+  returnDate?: string;
+  message?: string | null;
+  expiresAt?: Date;
+}
+
+export async function insertBorrowRequest(options: InsertBorrowRequestOptions): Promise<string> {
+  const [row] = await db
+    .insert(borrowRequests)
+    .values({
+      itemId: options.itemId,
+      borrowerId: options.borrowerId,
+      status: options.status ?? 'PENDING',
+      pickupDate: options.pickupDate ?? '2999-01-01',
+      returnDate: options.returnDate ?? '2999-01-05',
+      message: options.message ?? null,
+      expiresAt: options.expiresAt ?? new Date(Date.now() + 48 * 60 * 60 * 1000),
     })
     .returning();
   return row.id;
