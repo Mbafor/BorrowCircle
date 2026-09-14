@@ -1,0 +1,110 @@
+import request from 'supertest';
+import { eq } from 'drizzle-orm';
+import { app } from '../setup/app';
+import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
+import { registerAndLogin } from '../setup/authHelpers';
+import { db } from '../../src/config/db';
+import { items } from '../../src/db/schema';
+
+beforeEach(async () => {
+  await clearDatabase();
+});
+
+describe('PATCH /api/requests/:id/cancel', () => {
+  it('cancels a PENDING request', async () => {
+    const owner = await registerAndLogin();
+    const borrower = await registerAndLogin();
+    const itemId = await insertItem({ ownerId: owner.userId, status: 'AVAILABLE' });
+    const requestId = await insertBorrowRequest({ itemId, borrowerId: borrower.userId, status: 'PENDING' });
+
+    const res = await request(app)
+      .patch(`/api/requests/${requestId}/cancel`)
+      .set('Authorization', `Bearer ${borrower.accessToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.request.status).toBe('CANCELLED');
+  });
+
+  // Feature 6 (accept) is what actually produces an ACCEPTED request + a
+  // RESERVED item in normal operation; it doesn't exist yet, so this test
+  // synthesizes that state directly via the DB to exercise the cancel path
+  // now. Once Feature 6 lands, an equivalent end-to-end test (send -> accept
+  // -> cancel) should be added alongside this one.
+  it('cancels an ACCEPTED request and reverts the item to AVAILABLE', async () => {
+    const owner = await registerAndLogin();
+    const borrower = await registerAndLogin();
+    const itemId = await insertItem({ ownerId: owner.userId, status: 'RESERVED' });
+    const requestId = await insertBorrowRequest({ itemId, borrowerId: borrower.userId, status: 'ACCEPTED' });
+
+    const res = await request(app)
+      .patch(`/api/requests/${requestId}/cancel`)
+      .set('Authorization', `Bearer ${borrower.accessToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.request.status).toBe('CANCELLED');
+
+    const [item] = await db.select().from(items).where(eq(items.id, itemId));
+    expect(item.status).toBe('AVAILABLE');
+  });
+
+  it.each(['DECLINED', 'EXPIRED', 'CANCELLED', 'BORROWED', 'RETURNED', 'OVERDUE'] as const)(
+    'rejects cancelling a request that is already %s',
+    async (status) => {
+      const owner = await registerAndLogin();
+      const borrower = await registerAndLogin();
+      const itemId = await insertItem({ ownerId: owner.userId });
+      const requestId = await insertBorrowRequest({ itemId, borrowerId: borrower.userId, status });
+
+      const res = await request(app)
+        .patch(`/api/requests/${requestId}/cancel`)
+        .set('Authorization', `Bearer ${borrower.accessToken}`);
+
+      expect(res.status).toBe(409);
+    },
+  );
+
+  it('cannot cancel another user\'s request', async () => {
+    const owner = await registerAndLogin();
+    const borrower = await registerAndLogin();
+    const stranger = await registerAndLogin();
+    const itemId = await insertItem({ ownerId: owner.userId });
+    const requestId = await insertBorrowRequest({ itemId, borrowerId: borrower.userId, status: 'PENDING' });
+
+    const res = await request(app)
+      .patch(`/api/requests/${requestId}/cancel`)
+      .set('Authorization', `Bearer ${stranger.accessToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it("the item owner (not the borrower) cannot cancel the request either", async () => {
+    const owner = await registerAndLogin();
+    const borrower = await registerAndLogin();
+    const itemId = await insertItem({ ownerId: owner.userId });
+    const requestId = await insertBorrowRequest({ itemId, borrowerId: borrower.userId, status: 'PENDING' });
+
+    const res = await request(app)
+      .patch(`/api/requests/${requestId}/cancel`)
+      .set('Authorization', `Bearer ${owner.accessToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 404 for an unknown request id', async () => {
+    const someone = await registerAndLogin();
+    const res = await request(app)
+      .patch('/api/requests/00000000-0000-0000-0000-000000000000/cancel')
+      .set('Authorization', `Bearer ${someone.accessToken}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('rejects a request with no token', async () => {
+    const owner = await registerAndLogin();
+    const borrower = await registerAndLogin();
+    const itemId = await insertItem({ ownerId: owner.userId });
+    const requestId = await insertBorrowRequest({ itemId, borrowerId: borrower.userId });
+
+    const res = await request(app).patch(`/api/requests/${requestId}/cancel`);
+    expect(res.status).toBe(401);
+  });
+});
