@@ -1,7 +1,8 @@
 import { and, desc, eq, inArray, lt, ne } from 'drizzle-orm';
 import { db } from '../config/db';
 import { borrowRequests, items } from '../db/schema';
-import { ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../utils/errors';
+import { generateHandoverCode } from '../utils/token';
 import { CreateRequestBody, IncomingRequestsQuery } from '../validation/requests.validation';
 
 export type BorrowRequestRow = typeof borrowRequests.$inferSelect;
@@ -9,6 +10,7 @@ export type BorrowRequestStatus = BorrowRequestRow['status'];
 
 const EXPIRES_AFTER_MS = 48 * 60 * 60 * 1000;
 const CANCELLABLE_STATUSES: BorrowRequestStatus[] = ['PENDING', 'ACCEPTED'];
+const RETURNABLE_STATUSES: BorrowRequestStatus[] = ['BORROWED', 'OVERDUE'];
 export const AUTO_DECLINE_REASON = 'Item was reserved by another borrower';
 
 export function isCancellableStatus(status: BorrowRequestStatus): boolean {
@@ -20,8 +22,31 @@ export function isActionableStatus(status: BorrowRequestStatus): boolean {
   return status === 'PENDING';
 }
 
+// A return code can only be accepted while BORROWED or OVERDUE (late is still returnable).
+export function isReturnableStatus(status: BorrowRequestStatus): boolean {
+  return RETURNABLE_STATUSES.includes(status);
+}
+
 function isUniqueViolation(err: unknown): boolean {
   return typeof err === 'object' && err !== null && 'code' in err && (err as { code: unknown }).code === '23505';
+}
+
+/**
+ * pickup_code / return_code are short-lived, low-stakes confirmation codes
+ * exchanged face-to-face during a handover — not security credentials like
+ * the password-reset tokens — so they're stored as plain values rather than
+ * hashed. There's nothing meaningful to protect at rest: knowing a code
+ * without also being physically present for the handover it gates is
+ * useless, and they're generated fresh per request.
+ */
+// Borrower-facing view: never reveal return_code (that belongs to the owner).
+export function toBorrowerView(row: BorrowRequestRow): BorrowRequestRow {
+  return { ...row, returnCode: null };
+}
+
+// Owner-facing view: never reveal pickup_code (that belongs to the borrower).
+export function toOwnerView(row: BorrowRequestRow): BorrowRequestRow {
+  return { ...row, pickupCode: null };
 }
 
 export async function createRequest(borrowerId: string, input: CreateRequestBody): Promise<BorrowRequestRow> {
@@ -69,7 +94,7 @@ export async function createRequest(borrowerId: string, input: CreateRequestBody
     // TODO(notifications): notify the item owner that a new borrow request
     // was sent. Feature 10 will wire this up.
 
-    return created;
+    return toBorrowerView(created);
   } catch (err) {
     if (isUniqueViolation(err)) {
       throw new ConflictError('You already have a pending request for this item');
@@ -80,12 +105,20 @@ export async function createRequest(borrowerId: string, input: CreateRequestBody
 
 export async function getMyRequests(borrowerId: string): Promise<BorrowRequestRow[]> {
   await expireStaleRequests();
+  await flagOverdueRequests();
 
-  return db.select().from(borrowRequests).where(eq(borrowRequests.borrowerId, borrowerId)).orderBy(desc(borrowRequests.createdAt));
+  const rows = await db
+    .select()
+    .from(borrowRequests)
+    .where(eq(borrowRequests.borrowerId, borrowerId))
+    .orderBy(desc(borrowRequests.createdAt));
+
+  return rows.map(toBorrowerView);
 }
 
 export async function getRequestById(requestId: string, requestingUserId: string): Promise<BorrowRequestRow> {
   await expireStaleRequests();
+  await flagOverdueRequests();
 
   const [row] = await db
     .select({ request: borrowRequests, itemOwnerId: items.ownerId })
@@ -105,7 +138,7 @@ export async function getRequestById(requestId: string, requestingUserId: string
     throw new NotFoundError('Request not found');
   }
 
-  return row.request;
+  return isBorrower ? toBorrowerView(row.request) : toOwnerView(row.request);
 }
 
 export async function cancelRequest(requestId: string, borrowerId: string): Promise<BorrowRequestRow> {
@@ -139,7 +172,7 @@ export async function cancelRequest(requestId: string, borrowerId: string): Prom
     // TODO(notifications): notify the item owner that this request was
     // cancelled. Feature 10 will wire this up.
 
-    return updated;
+    return toBorrowerView(updated);
   });
 }
 
@@ -177,6 +210,46 @@ export async function expireStaleRequests(): Promise<number> {
   });
 }
 
+/**
+ * Finds every BORROWED request whose return_date has passed with no
+ * confirmed return and flags both it and its item OVERDUE. Same pattern as
+ * expireStaleRequests(): pure, directly callable (used by the cron job and
+ * the lazy calls in the GET endpoints below), and naturally idempotent — a
+ * request already OVERDUE is no longer BORROWED, so a second run finds
+ * nothing left to do.
+ */
+export async function flagOverdueRequests(): Promise<number> {
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  return db.transaction(async (tx) => {
+    const overdue = await tx
+      .select()
+      .from(borrowRequests)
+      .where(and(eq(borrowRequests.status, 'BORROWED'), lt(borrowRequests.returnDate, todayStr)));
+
+    if (overdue.length === 0) {
+      return 0;
+    }
+
+    const overdueIds = overdue.map((r) => r.id);
+    await tx.update(borrowRequests).set({ status: 'OVERDUE' }).where(inArray(borrowRequests.id, overdueIds));
+
+    const itemIds = overdue.map((r) => r.itemId);
+    await tx
+      .update(items)
+      .set({ status: 'OVERDUE' })
+      .where(and(inArray(items.id, itemIds), eq(items.status, 'BORROWED')));
+
+    // TODO(notifications): Feature 10 should send a repeating daily
+    // notification (to the borrower and/or lender) until the item is
+    // returned. Not implemented here — this only sets the OVERDUE flag once
+    // per request; the repeat-notification schedule is out of scope for
+    // this feature.
+
+    return overdueIds.length;
+  });
+}
+
 export async function getIncomingRequests(
   ownerId: string,
   filters: IncomingRequestsQuery,
@@ -203,7 +276,7 @@ export async function getIncomingRequests(
     .where(and(...conditions))
     .orderBy(desc(borrowRequests.createdAt));
 
-  return rows.map((row) => row.request);
+  return rows.map((row) => toOwnerView(row.request));
 }
 
 /**
@@ -244,7 +317,7 @@ export async function acceptRequest(requestId: string, ownerId: string): Promise
 
     const [accepted] = await tx
       .update(borrowRequests)
-      .set({ status: 'ACCEPTED' })
+      .set({ status: 'ACCEPTED', pickupCode: generateHandoverCode() })
       .where(and(eq(borrowRequests.id, requestId), eq(borrowRequests.status, 'PENDING')))
       .returning();
 
@@ -267,7 +340,7 @@ export async function acceptRequest(requestId: string, ownerId: string): Promise
     // TODO(notifications): notify each auto-declined borrower that the item
     // was reserved by someone else. Feature 10 will wire this up.
 
-    return accepted;
+    return toOwnerView(accepted);
   });
 }
 
@@ -304,5 +377,97 @@ export async function declineRequest(
   // TODO(notifications): notify the borrower that their request was
   // declined. Feature 10 will wire this up.
 
-  return declined;
+  return toOwnerView(declined);
+}
+
+/**
+ * Owner confirms handover by entering the borrower's pickup code. On a
+ * match: the request becomes BORROWED, the item becomes BORROWED, and a
+ * one-time return_code is generated now (not at acceptance) since the
+ * lender doesn't need it until the return date approaches.
+ */
+export async function confirmPickup(
+  requestId: string,
+  ownerId: string,
+  pickupCode: string,
+): Promise<BorrowRequestRow> {
+  const [request] = await db.select().from(borrowRequests).where(eq(borrowRequests.id, requestId)).limit(1);
+  if (!request) {
+    throw new NotFoundError('Request not found');
+  }
+
+  const [item] = await db.select().from(items).where(eq(items.id, request.itemId)).limit(1);
+  if (!item || item.ownerId !== ownerId) {
+    throw new ForbiddenError('You do not have permission to manage this request');
+  }
+
+  if (request.status !== 'ACCEPTED') {
+    throw new ConflictError(`Cannot confirm pickup for a request that is ${request.status}`);
+  }
+
+  if (request.pickupCode !== pickupCode) {
+    throw new ValidationError({ pickupCode: 'Incorrect code' });
+  }
+
+  return db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(borrowRequests)
+      .set({ status: 'BORROWED', returnCode: generateHandoverCode() })
+      .where(and(eq(borrowRequests.id, requestId), eq(borrowRequests.status, 'ACCEPTED')))
+      .returning();
+
+    if (!updated) {
+      const [current] = await tx.select().from(borrowRequests).where(eq(borrowRequests.id, requestId)).limit(1);
+      throw new ConflictError(`Cannot confirm pickup for a request that is ${current?.status ?? 'no longer available'}`);
+    }
+
+    await tx.update(items).set({ status: 'BORROWED' }).where(eq(items.id, item.id));
+
+    return toOwnerView(updated);
+  });
+}
+
+/**
+ * Borrower confirms return by entering the lender's return code. On a
+ * match: the request becomes RETURNED, the item becomes AVAILABLE. Allowed
+ * from BORROWED or OVERDUE — returning late is still a valid return.
+ */
+export async function confirmReturn(
+  requestId: string,
+  borrowerId: string,
+  returnCode: string,
+): Promise<BorrowRequestRow> {
+  const [request] = await db.select().from(borrowRequests).where(eq(borrowRequests.id, requestId)).limit(1);
+  if (!request) {
+    throw new NotFoundError('Request not found');
+  }
+
+  if (request.borrowerId !== borrowerId) {
+    throw new ForbiddenError('You do not have permission to confirm return for this request');
+  }
+
+  if (!isReturnableStatus(request.status)) {
+    throw new ConflictError(`Cannot confirm return for a request that is ${request.status}`);
+  }
+
+  if (request.returnCode !== returnCode) {
+    throw new ValidationError({ returnCode: 'Incorrect code' });
+  }
+
+  return db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(borrowRequests)
+      .set({ status: 'RETURNED' })
+      .where(and(eq(borrowRequests.id, requestId), inArray(borrowRequests.status, RETURNABLE_STATUSES)))
+      .returning();
+
+    if (!updated) {
+      const [current] = await tx.select().from(borrowRequests).where(eq(borrowRequests.id, requestId)).limit(1);
+      throw new ConflictError(`Cannot confirm return for a request that is ${current?.status ?? 'no longer available'}`);
+    }
+
+    await tx.update(items).set({ status: 'AVAILABLE' }).where(eq(items.id, request.itemId));
+
+    return toBorrowerView(updated);
+  });
 }

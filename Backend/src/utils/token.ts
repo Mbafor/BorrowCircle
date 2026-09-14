@@ -10,6 +10,16 @@ export function generateRandomToken(bytes = 48): string {
   return crypto.randomBytes(bytes).toString('hex');
 }
 
+/**
+ * Generates a short numeric handover code (e.g. "042917"), meant to be read
+ * aloud or shown on a phone screen during a face-to-face pickup/return, not
+ * typed from a link — hence short digits instead of a long hex token.
+ */
+export function generateHandoverCode(digits = 6): string {
+  const max = 10 ** digits;
+  return crypto.randomInt(0, max).toString().padStart(digits, '0');
+}
+
 export function hashToken(rawToken: string): string {
   return crypto.createHash('sha256').update(rawToken).digest('hex');
 }

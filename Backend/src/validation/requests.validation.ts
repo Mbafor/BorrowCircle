@@ -49,6 +49,21 @@ export const incomingRequestsQuerySchema = z.object({
   itemId: z.string().uuid('Invalid item id').optional(),
 });
 
+const handoverCode = z
+  .string({ required_error: 'Code is required' })
+  .trim()
+  .regex(/^\d{6}$/, 'Enter the 6-digit code');
+
+export const confirmPickupSchema = z.object({
+  pickupCode: handoverCode,
+});
+
+export const confirmReturnSchema = z.object({
+  returnCode: handoverCode,
+});
+
 export type CreateRequestBody = z.infer<typeof createRequestSchema>;
 export type DeclineRequestBody = z.infer<typeof declineRequestSchema>;
 export type IncomingRequestsQuery = z.infer<typeof incomingRequestsQuerySchema>;
+export type ConfirmPickupBody = z.infer<typeof confirmPickupSchema>;
+export type ConfirmReturnBody = z.infer<typeof confirmReturnSchema>;

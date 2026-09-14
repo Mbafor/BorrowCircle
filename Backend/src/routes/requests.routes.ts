@@ -3,6 +3,8 @@ import * as requestsController from '../controllers/requests.controller';
 import { requireAuth } from '../middleware/auth.middleware';
 import { validate, validateQuery } from '../middleware/validate.middleware';
 import {
+  confirmPickupSchema,
+  confirmReturnSchema,
   createRequestSchema,
   declineRequestSchema,
   incomingRequestsQuerySchema,
@@ -26,6 +28,18 @@ router.patch(
   requireAuth,
   validate(declineRequestSchema),
   requestsController.decline,
+);
+router.patch(
+  '/api/requests/:id/confirm-pickup',
+  requireAuth,
+  validate(confirmPickupSchema),
+  requestsController.confirmPickup,
+);
+router.patch(
+  '/api/requests/:id/confirm-return',
+  requireAuth,
+  validate(confirmReturnSchema),
+  requestsController.confirmReturn,
 );
 
 export default router;

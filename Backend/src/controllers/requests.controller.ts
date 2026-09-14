@@ -1,6 +1,12 @@
 import { NextFunction, Request, Response } from 'express';
 import * as requestsService from '../services/requests.service';
-import { CreateRequestBody, DeclineRequestBody, IncomingRequestsQuery } from '../validation/requests.validation';
+import {
+  ConfirmPickupBody,
+  ConfirmReturnBody,
+  CreateRequestBody,
+  DeclineRequestBody,
+  IncomingRequestsQuery,
+} from '../validation/requests.validation';
 
 export async function create(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -62,6 +68,26 @@ export async function decline(req: Request, res: Response, next: NextFunction): 
   try {
     const { reason } = req.body as DeclineRequestBody;
     const request = await requestsService.declineRequest(req.params.id, req.userId as string, reason);
+    res.json({ request });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function confirmPickup(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { pickupCode } = req.body as ConfirmPickupBody;
+    const request = await requestsService.confirmPickup(req.params.id, req.userId as string, pickupCode);
+    res.json({ request });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function confirmReturn(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { returnCode } = req.body as ConfirmReturnBody;
+    const request = await requestsService.confirmReturn(req.params.id, req.userId as string, returnCode);
     res.json({ request });
   } catch (err) {
     next(err);
