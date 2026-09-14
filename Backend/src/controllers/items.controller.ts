@@ -2,7 +2,17 @@ import { NextFunction, Request, Response } from 'express';
 import * as itemsService from '../services/items.service';
 import * as storageService from '../services/storage';
 import { ValidationError } from '../utils/errors';
-import { CreateItemBody, UpdateItemBody, UpdateItemStatusBody } from '../validation/items.validation';
+import { BrowseItemsQuery, CreateItemBody, UpdateItemBody, UpdateItemStatusBody } from '../validation/items.validation';
+
+export async function browse(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const query = res.locals.query as BrowseItemsQuery;
+    const result = await itemsService.browseItems(query);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
 
 export async function create(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

@@ -51,6 +51,36 @@ export const updateItemStatusSchema = z.object({
   status: z.enum(['PAUSED', 'AVAILABLE', 'CANCELLED'], { required_error: 'Status is required' }),
 });
 
+const MAX_LIMIT = 50;
+
+export const browseItemsQuerySchema = z.object({
+  search: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().trim().max(200, 'Search term is too long').optional(),
+  ),
+  category: z.enum(CATEGORIES, { invalid_type_error: 'Select a valid category' }).optional(),
+  location: z.enum(LOCATIONS, { invalid_type_error: 'Select a valid location' }).optional(),
+  borrowType: z.enum(['FREE', 'PAID'], { invalid_type_error: 'Borrow type must be FREE or PAID' }).optional(),
+  sort: z
+    .enum(['newest', 'price_asc', 'price_desc'], { invalid_type_error: 'Invalid sort option' })
+    .optional()
+    .default('newest'),
+  page: z.coerce
+    .number({ invalid_type_error: 'Page must be a number' })
+    .int('Page must be an integer')
+    .positive('Page must be positive')
+    .optional()
+    .default(1),
+  limit: z.coerce
+    .number({ invalid_type_error: 'Limit must be a number' })
+    .int('Limit must be an integer')
+    .positive('Limit must be positive')
+    .optional()
+    .default(20)
+    .transform((value) => Math.min(value, MAX_LIMIT)),
+});
+
 export type CreateItemBody = z.infer<typeof createItemSchema>;
 export type UpdateItemBody = z.infer<typeof updateItemSchema>;
 export type UpdateItemStatusBody = z.infer<typeof updateItemStatusSchema>;
+export type BrowseItemsQuery = z.infer<typeof browseItemsQuerySchema>;

@@ -2,11 +2,17 @@ import { Router } from 'express';
 import * as itemsController from '../controllers/items.controller';
 import { attachUserIfPresent, requireAuth } from '../middleware/auth.middleware';
 import { uploadItemImageFiles } from '../middleware/upload.middleware';
-import { validate } from '../middleware/validate.middleware';
-import { createItemSchema, updateItemSchema, updateItemStatusSchema } from '../validation/items.validation';
+import { validate, validateQuery } from '../middleware/validate.middleware';
+import {
+  browseItemsQuerySchema,
+  createItemSchema,
+  updateItemSchema,
+  updateItemStatusSchema,
+} from '../validation/items.validation';
 
 const router = Router();
 
+router.get('/api/items', validateQuery(browseItemsQuerySchema), itemsController.browse);
 router.post('/api/items', requireAuth, validate(createItemSchema), itemsController.create);
 router.get('/api/items/mine', requireAuth, itemsController.getMine);
 router.get('/api/items/:id', attachUserIfPresent, itemsController.getById);

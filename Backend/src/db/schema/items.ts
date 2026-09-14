@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, decimal, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, decimal, timestamp, pgEnum, index } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { users } from './users';
 
@@ -13,21 +13,29 @@ export const itemStatusEnum = pgEnum('item_status', [
   'REMOVED',
 ]);
 
-export const items = pgTable('items', {
-  id: uuid('id')
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  ownerId: uuid('owner_id')
-    .notNull()
-    .references(() => users.id),
-  title: varchar('title', { length: 255 }).notNull(),
-  description: text('description').notNull(),
-  category: varchar('category', { length: 100 }).notNull(),
-  location: varchar('location', { length: 255 }).notNull(),
-  // Up to 3 photo URLs; the 3-item cap is enforced in application code, not here.
-  imageUrls: text('image_urls').array(),
-  borrowType: borrowTypeEnum('borrow_type').notNull(),
-  pricePerDay: decimal('price_per_day', { precision: 10, scale: 2 }),
-  status: itemStatusEnum('status').notNull().default('AVAILABLE'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const items = pgTable(
+  'items',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => users.id),
+    title: varchar('title', { length: 255 }).notNull(),
+    description: text('description').notNull(),
+    category: varchar('category', { length: 100 }).notNull(),
+    location: varchar('location', { length: 255 }).notNull(),
+    // Up to 3 photo URLs; the 3-item cap is enforced in application code, not here.
+    imageUrls: text('image_urls').array(),
+    borrowType: borrowTypeEnum('borrow_type').notNull(),
+    pricePerDay: decimal('price_per_day', { precision: 10, scale: 2 }),
+    status: itemStatusEnum('status').notNull().default('AVAILABLE'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    statusIdx: index('items_status_idx').on(table.status),
+    categoryIdx: index('items_category_idx').on(table.category),
+    locationIdx: index('items_location_idx').on(table.location),
+  }),
+);

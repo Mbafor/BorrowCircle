@@ -1,8 +1,8 @@
-import { eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, or, SQL, sql } from 'drizzle-orm';
 import { db } from '../config/db';
-import { items } from '../db/schema';
+import { items, users } from '../db/schema';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../utils/errors';
-import { CreateItemBody, UpdateItemBody } from '../validation/items.validation';
+import { BrowseItemsQuery, CreateItemBody, UpdateItemBody } from '../validation/items.validation';
 
 export type ItemRow = typeof items.$inferSelect;
 export type ItemStatus = ItemRow['status'];
@@ -157,4 +157,126 @@ export async function setItemImages(itemId: string, ownerId: string, imageUrls: 
 
   const [updated] = await db.update(items).set({ imageUrls }).where(eq(items.id, itemId)).returning();
   return updated;
+}
+
+export interface BrowseItem {
+  id: string;
+  title: string;
+  category: string;
+  location: string;
+  borrowType: 'FREE' | 'PAID';
+  pricePerDay: string | null;
+  status: ItemStatus;
+  imageUrl: string | null;
+  ownerId: string;
+  ownerName: string;
+  ownerAverageRating: string;
+}
+
+export interface BrowsePagination {
+  page: number;
+  limit: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface BrowseResult {
+  items: BrowseItem[];
+  pagination: BrowsePagination;
+}
+
+/**
+ * Builds the WHERE clause shared by the browse listing query and its count
+ * query, so the two always agree on what "matches" means.
+ */
+export function buildBrowseWhereClause(
+  filters: Pick<BrowseItemsQuery, 'search' | 'category' | 'location' | 'borrowType'>,
+): SQL {
+  const conditions: SQL[] = [eq(items.status, 'AVAILABLE')];
+
+  if (filters.category) {
+    conditions.push(eq(items.category, filters.category));
+  }
+  if (filters.location) {
+    conditions.push(eq(items.location, filters.location));
+  }
+  if (filters.borrowType) {
+    conditions.push(eq(items.borrowType, filters.borrowType));
+  }
+  if (filters.search) {
+    const pattern = `%${filters.search}%`;
+    conditions.push(or(ilike(items.title, pattern), ilike(items.description, pattern)) as SQL);
+  }
+
+  return and(...conditions) as SQL;
+}
+
+// FREE items have no price; for price sorting they're treated as price 0, so
+// ascending puts them first and descending puts them last alongside the
+// cheapest paid items.
+const PRICE_FOR_SORT = sql`COALESCE(${items.pricePerDay}, 0)`;
+
+export function buildBrowseOrderBy(sortOption: BrowseItemsQuery['sort']): SQL {
+  if (sortOption === 'price_asc') {
+    return asc(PRICE_FOR_SORT);
+  }
+  if (sortOption === 'price_desc') {
+    return desc(PRICE_FOR_SORT);
+  }
+  return desc(items.createdAt);
+}
+
+export async function browseItems(filters: BrowseItemsQuery): Promise<BrowseResult> {
+  const whereClause = buildBrowseWhereClause(filters);
+  const orderBy = buildBrowseOrderBy(filters.sort);
+  const offset = (filters.page - 1) * filters.limit;
+
+  const [rows, totalResult] = await Promise.all([
+    db
+      .select({
+        id: items.id,
+        title: items.title,
+        category: items.category,
+        location: items.location,
+        borrowType: items.borrowType,
+        pricePerDay: items.pricePerDay,
+        status: items.status,
+        imageUrls: items.imageUrls,
+        ownerId: items.ownerId,
+        ownerName: users.fullName,
+        ownerAverageRating: users.averageRating,
+      })
+      .from(items)
+      .leftJoin(users, eq(items.ownerId, users.id))
+      .where(whereClause)
+      .orderBy(orderBy)
+      .limit(filters.limit)
+      .offset(offset),
+    db.select({ value: count() }).from(items).where(whereClause),
+  ]);
+
+  const totalItems = Number(totalResult[0]?.value ?? 0);
+  const totalPages = Math.ceil(totalItems / filters.limit);
+
+  return {
+    items: rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      category: row.category,
+      location: row.location,
+      borrowType: row.borrowType,
+      pricePerDay: row.pricePerDay,
+      status: row.status,
+      imageUrl: row.imageUrls?.[0] ?? null,
+      ownerId: row.ownerId,
+      ownerName: row.ownerName ?? '',
+      ownerAverageRating: row.ownerAverageRating ?? '0.00',
+    })),
+    pagination: {
+      page: filters.page,
+      limit: filters.limit,
+      totalItems,
+      totalPages,
+    },
+  };
 }
