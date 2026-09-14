@@ -29,6 +29,23 @@ describe('PATCH /api/requests/:id/accept', () => {
     expect(item.status).toBe('RESERVED');
   });
 
+  it('generates a non-null pickup_code — checked via the DB, since the owner-facing response never reveals it', async () => {
+    const owner = await registerAndLogin();
+    const borrower = await registerAndLogin();
+    const itemId = await insertItem({ ownerId: owner.userId, status: 'AVAILABLE' });
+    const requestId = await insertBorrowRequest({ itemId, borrowerId: borrower.userId, status: 'PENDING' });
+
+    const res = await request(app)
+      .patch(`/api/requests/${requestId}/accept`)
+      .set('Authorization', `Bearer ${owner.accessToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.request.pickupCode).toBeNull();
+
+    const [row] = await db.select().from(borrowRequests).where(eq(borrowRequests.id, requestId));
+    expect(row.pickupCode).not.toBeNull();
+    expect(row.pickupCode).toMatch(/^\d{6}$/);
+  });
+
   it('auto-declines every other PENDING request on the same item, with the system reason', async () => {
     const owner = await registerAndLogin();
     const borrowerA = await registerAndLogin();

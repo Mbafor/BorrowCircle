@@ -1,4 +1,4 @@
-import { isActionableStatus, isCancellableStatus } from '../../src/services/requests.service';
+import { isActionableStatus, isCancellableStatus, isReturnableStatus } from '../../src/services/requests.service';
 
 describe('isCancellableStatus', () => {
   it('allows cancelling while PENDING or ACCEPTED', () => {
@@ -29,5 +29,21 @@ describe('isActionableStatus (accept/decline eligibility)', () => {
     expect(isActionableStatus('BORROWED')).toBe(false);
     expect(isActionableStatus('RETURNED')).toBe(false);
     expect(isActionableStatus('OVERDUE')).toBe(false);
+  });
+});
+
+describe('isReturnableStatus (confirm-return eligibility)', () => {
+  it('allows confirming return while BORROWED or OVERDUE', () => {
+    expect(isReturnableStatus('BORROWED')).toBe(true);
+    expect(isReturnableStatus('OVERDUE')).toBe(true);
+  });
+
+  it('blocks confirming return for every other status', () => {
+    expect(isReturnableStatus('PENDING')).toBe(false);
+    expect(isReturnableStatus('ACCEPTED')).toBe(false);
+    expect(isReturnableStatus('DECLINED')).toBe(false);
+    expect(isReturnableStatus('EXPIRED')).toBe(false);
+    expect(isReturnableStatus('CANCELLED')).toBe(false);
+    expect(isReturnableStatus('RETURNED')).toBe(false);
   });
 });

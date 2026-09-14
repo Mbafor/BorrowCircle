@@ -57,6 +57,8 @@ export interface InsertBorrowRequestOptions {
   returnDate?: string;
   message?: string | null;
   expiresAt?: Date;
+  pickupCode?: string | null;
+  returnCode?: string | null;
 }
 
 export async function insertBorrowRequest(options: InsertBorrowRequestOptions): Promise<string> {
@@ -70,6 +72,8 @@ export async function insertBorrowRequest(options: InsertBorrowRequestOptions): 
       returnDate: options.returnDate ?? '2999-01-05',
       message: options.message ?? null,
       expiresAt: options.expiresAt ?? new Date(Date.now() + 48 * 60 * 60 * 1000),
+      ...(options.pickupCode !== undefined ? { pickupCode: options.pickupCode } : {}),
+      ...(options.returnCode !== undefined ? { returnCode: options.returnCode } : {}),
     })
     .returning();
   return row.id;
