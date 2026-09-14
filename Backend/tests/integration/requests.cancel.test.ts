@@ -25,12 +25,9 @@ describe('PATCH /api/requests/:id/cancel', () => {
     expect(res.body.request.status).toBe('CANCELLED');
   });
 
-  // Feature 6 (accept) is what actually produces an ACCEPTED request + a
-  // RESERVED item in normal operation; it doesn't exist yet, so this test
-  // synthesizes that state directly via the DB to exercise the cancel path
-  // now. Once Feature 6 lands, an equivalent end-to-end test (send -> accept
-  // -> cancel) should be added alongside this one.
-  it('cancels an ACCEPTED request and reverts the item to AVAILABLE', async () => {
+  // Before Feature 6 existed, this test had to synthesize ACCEPTED/RESERVED
+  // state directly via the DB, since nothing could produce it yet.
+  it('cancels an ACCEPTED request and reverts the item to AVAILABLE (state synthesized directly)', async () => {
     const owner = await registerAndLogin();
     const borrower = await registerAndLogin();
     const itemId = await insertItem({ ownerId: owner.userId, status: 'RESERVED' });
@@ -45,6 +42,33 @@ describe('PATCH /api/requests/:id/cancel', () => {
 
     const [item] = await db.select().from(items).where(eq(items.id, itemId));
     expect(item.status).toBe('AVAILABLE');
+  });
+
+  // Now that Feature 6 (accept) exists, this is the real end-to-end path:
+  // send -> accept -> cancel, with no synthesized state.
+  it('end-to-end: after a real accept, the borrower can still cancel and the item reverts to AVAILABLE', async () => {
+    const owner = await registerAndLogin();
+    const borrower = await registerAndLogin();
+    const itemId = await insertItem({ ownerId: owner.userId, status: 'AVAILABLE' });
+    const requestId = await insertBorrowRequest({ itemId, borrowerId: borrower.userId, status: 'PENDING' });
+
+    const acceptRes = await request(app)
+      .patch(`/api/requests/${requestId}/accept`)
+      .set('Authorization', `Bearer ${owner.accessToken}`);
+    expect(acceptRes.status).toBe(200);
+    expect(acceptRes.body.request.status).toBe('ACCEPTED');
+
+    const [reservedItem] = await db.select().from(items).where(eq(items.id, itemId));
+    expect(reservedItem.status).toBe('RESERVED');
+
+    const cancelRes = await request(app)
+      .patch(`/api/requests/${requestId}/cancel`)
+      .set('Authorization', `Bearer ${borrower.accessToken}`);
+    expect(cancelRes.status).toBe(200);
+    expect(cancelRes.body.request.status).toBe('CANCELLED');
+
+    const [availableAgain] = await db.select().from(items).where(eq(items.id, itemId));
+    expect(availableAgain.status).toBe('AVAILABLE');
   });
 
   it.each(['DECLINED', 'EXPIRED', 'CANCELLED', 'BORROWED', 'RETURNED', 'OVERDUE'] as const)(

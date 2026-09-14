@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { borrowRequestStatusEnum } from '../db/schema/borrowRequests';
 
 const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD format');
 
@@ -36,4 +37,18 @@ export const createRequestSchema = z
     }
   });
 
+export const declineRequestSchema = z.object({
+  reason: z.string().trim().max(300, 'Reason is too long').optional(),
+});
+
+export const incomingRequestsQuerySchema = z.object({
+  status: z
+    .enum(borrowRequestStatusEnum.enumValues, { invalid_type_error: 'Invalid status value' })
+    .optional()
+    .default('PENDING'),
+  itemId: z.string().uuid('Invalid item id').optional(),
+});
+
 export type CreateRequestBody = z.infer<typeof createRequestSchema>;
+export type DeclineRequestBody = z.infer<typeof declineRequestSchema>;
+export type IncomingRequestsQuery = z.infer<typeof incomingRequestsQuerySchema>;

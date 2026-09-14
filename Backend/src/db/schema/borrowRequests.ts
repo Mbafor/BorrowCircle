@@ -32,6 +32,7 @@ export const borrowRequests = pgTable(
     pickupCode: varchar('pickup_code', { length: 32 }),
     returnCode: varchar('return_code', { length: 32 }),
     status: borrowRequestStatusEnum('status').notNull().default('PENDING'),
+    declineReason: text('decline_reason'),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
