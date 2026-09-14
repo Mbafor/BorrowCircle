@@ -7,6 +7,7 @@ import { env, isProduction, isTest } from './config/env';
 import healthRoutes from './routes/healthRoutes';
 import authRoutes from './routes/auth.routes';
 import usersRoutes from './routes/users.routes';
+import itemsRoutes from './routes/items.routes';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { errorHandler } from './middleware/errorHandler';
 
@@ -25,6 +26,7 @@ export function createApp(): Application {
   app.use(healthRoutes);
   app.use(authRoutes);
   app.use(usersRoutes);
+  app.use(itemsRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

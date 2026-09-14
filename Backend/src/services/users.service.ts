@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
 import { db } from '../config/db';
 import { items, refreshTokens, users } from '../db/schema';
 import { ConflictError, NotFoundError } from '../utils/errors';
@@ -54,8 +54,11 @@ function toProfileItem(item: typeof items.$inferSelect): ProfileItem {
   };
 }
 
-async function getItemsForOwner(ownerId: string): Promise<ProfileItem[]> {
-  const rows = await db.select().from(items).where(eq(items.ownerId, ownerId));
+async function getItemsForOwner(ownerId: string, options: { excludeCancelled?: boolean } = {}): Promise<ProfileItem[]> {
+  const condition = options.excludeCancelled
+    ? and(eq(items.ownerId, ownerId), notInArray(items.status, ['CANCELLED']))
+    : eq(items.ownerId, ownerId);
+  const rows = await db.select().from(items).where(condition);
   return rows.map(toProfileItem);
 }
 
@@ -92,7 +95,7 @@ export async function getPublicProfile(userId: string): Promise<Profile> {
   if (!user) {
     throw new NotFoundError('User not found');
   }
-  const ownedItems = await getItemsForOwner(userId);
+  const ownedItems = await getItemsForOwner(userId, { excludeCancelled: true });
   return toProfile(user, ownedItems, false);
 }
 

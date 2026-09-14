@@ -62,4 +62,21 @@ describe('GET /api/users/:id', () => {
     expect(res.body.user.items).toHaveLength(1);
     expect(res.body.user.items[0].title).toBe("A's item");
   });
+
+  it('excludes CANCELLED items from the public profile view, but GET /api/items/mine still shows them to the owner', async () => {
+    const owner = await registerAndLogin();
+    await insertItem({ ownerId: owner.userId, status: 'CANCELLED', title: 'Cancelled Item' });
+    await insertItem({ ownerId: owner.userId, status: 'AVAILABLE', title: 'Live Item' });
+
+    const publicProfile = await request(app).get(`/api/users/${owner.userId}`);
+    expect(publicProfile.body.user.items).toHaveLength(1);
+    expect(publicProfile.body.user.items[0].title).toBe('Live Item');
+
+    const mine = await request(app).get('/api/items/mine').set('Authorization', `Bearer ${owner.accessToken}`);
+    expect(mine.body.items).toHaveLength(2);
+    expect(mine.body.items.map((item: { title: string }) => item.title).sort()).toEqual([
+      'Cancelled Item',
+      'Live Item',
+    ]);
+  });
 });
