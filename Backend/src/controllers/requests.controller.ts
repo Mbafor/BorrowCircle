@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import * as requestsService from '../services/requests.service';
-import { CreateRequestBody } from '../validation/requests.validation';
+import { CreateRequestBody, DeclineRequestBody, IncomingRequestsQuery } from '../validation/requests.validation';
 
 export async function create(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -33,6 +33,35 @@ export async function getById(req: Request, res: Response, next: NextFunction): 
 export async function cancel(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const request = await requestsService.cancelRequest(req.params.id, req.userId as string);
+    res.json({ request });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getIncoming(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const query = res.locals.query as IncomingRequestsQuery;
+    const requests = await requestsService.getIncomingRequests(req.userId as string, query);
+    res.json({ requests });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function accept(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const request = await requestsService.acceptRequest(req.params.id, req.userId as string);
+    res.json({ request });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function decline(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { reason } = req.body as DeclineRequestBody;
+    const request = await requestsService.declineRequest(req.params.id, req.userId as string, reason);
     res.json({ request });
   } catch (err) {
     next(err);

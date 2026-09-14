@@ -1,0 +1,1 @@
+ALTER TABLE "borrow_requests" ADD COLUMN "decline_reason" text;
