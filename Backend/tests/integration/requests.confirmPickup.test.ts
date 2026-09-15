@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
@@ -24,7 +24,7 @@ describe('PATCH /api/requests/:id/confirm-pickup', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/confirm-pickup`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ pickupCode: '111222' });
 
     expect(res.status).toBe(200);
@@ -53,7 +53,7 @@ describe('PATCH /api/requests/:id/confirm-pickup', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/confirm-pickup`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ pickupCode: '999999' });
 
     expect(res.status).toBe(400);
@@ -78,7 +78,7 @@ describe('PATCH /api/requests/:id/confirm-pickup', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/confirm-pickup`)
-      .set('Authorization', `Bearer ${stranger.accessToken}`)
+      .set('Cookie', `accessToken=${stranger.accessToken}`)
       .send({ pickupCode: '111222' });
 
     expect(res.status).toBe(403);
@@ -99,7 +99,7 @@ describe('PATCH /api/requests/:id/confirm-pickup', () => {
 
       const res = await request(app)
         .patch(`/api/requests/${requestId}/confirm-pickup`)
-        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .set('Cookie', `accessToken=${owner.accessToken}`)
         .send({ pickupCode: '111222' });
 
       expect(res.status).toBe(409);
@@ -115,7 +115,7 @@ describe('PATCH /api/requests/:id/confirm-pickup', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/confirm-pickup`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ pickupCode: 'abc' });
 
     expect(res.status).toBe(400);
@@ -125,7 +125,7 @@ describe('PATCH /api/requests/:id/confirm-pickup', () => {
     const owner = await registerAndLogin();
     const res = await request(app)
       .patch('/api/requests/00000000-0000-0000-0000-000000000000/confirm-pickup')
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ pickupCode: '111222' });
     expect(res.status).toBe(404);
   });

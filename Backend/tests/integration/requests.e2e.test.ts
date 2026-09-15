@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase } from '../setup/dbHelpers';
@@ -25,7 +25,7 @@ describe('end-to-end: list -> request -> accept -> pickup -> return', () => {
     // 1. Owner creates an item.
     const createItemRes = await request(app)
       .post('/api/items')
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send(validItemPayload());
     expect(createItemRes.status).toBe(201);
     const itemId = createItemRes.body.item.id as string;
@@ -33,7 +33,7 @@ describe('end-to-end: list -> request -> accept -> pickup -> return', () => {
     // 2. Borrower sends a request.
     const createRequestRes = await request(app)
       .post('/api/requests')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ itemId, pickupDate: futureDate(1), returnDate: futureDate(3) });
     expect(createRequestRes.status).toBe(201);
     const requestId = createRequestRes.body.request.id as string;
@@ -42,7 +42,7 @@ describe('end-to-end: list -> request -> accept -> pickup -> return', () => {
     // 3. Owner accepts it.
     const acceptRes = await request(app)
       .patch(`/api/requests/${requestId}/accept`)
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
     expect(acceptRes.status).toBe(200);
     expect(acceptRes.body.request.status).toBe('ACCEPTED');
 
@@ -52,14 +52,14 @@ describe('end-to-end: list -> request -> accept -> pickup -> return', () => {
     // Pull the real pickup code the borrower would read off their own view.
     const borrowerView = await request(app)
       .get(`/api/requests/${requestId}`)
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
     const pickupCode = borrowerView.body.request.pickupCode as string;
     expect(pickupCode).toMatch(/^\d{6}$/);
 
     // 4. Owner confirms pickup with the code the borrower read out to them.
     const confirmPickupRes = await request(app)
       .patch(`/api/requests/${requestId}/confirm-pickup`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ pickupCode });
     expect(confirmPickupRes.status).toBe(200);
     expect(confirmPickupRes.body.request.status).toBe('BORROWED');
@@ -70,14 +70,14 @@ describe('end-to-end: list -> request -> accept -> pickup -> return', () => {
     // Pull the real return code the owner would read off their own view.
     const ownerView = await request(app)
       .get(`/api/requests/${requestId}`)
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
     const returnCode = ownerView.body.request.returnCode as string;
     expect(returnCode).toMatch(/^\d{6}$/);
 
     // 5. Borrower confirms return with the code the owner read out to them.
     const confirmReturnRes = await request(app)
       .patch(`/api/requests/${requestId}/confirm-return`)
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ returnCode });
     expect(confirmReturnRes.status).toBe(200);
     expect(confirmReturnRes.body.request.status).toBe('RETURNED');

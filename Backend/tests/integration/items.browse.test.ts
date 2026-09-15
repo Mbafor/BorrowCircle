@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase, insertItem } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';

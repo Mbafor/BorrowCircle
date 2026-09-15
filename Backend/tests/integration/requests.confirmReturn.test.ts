@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
@@ -24,7 +24,7 @@ describe('PATCH /api/requests/:id/confirm-return', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/confirm-return`)
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ returnCode: '333444' });
 
     expect(res.status).toBe(200);
@@ -49,7 +49,7 @@ describe('PATCH /api/requests/:id/confirm-return', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/confirm-return`)
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ returnCode: '333444' });
 
     expect(res.status).toBe(200);
@@ -72,7 +72,7 @@ describe('PATCH /api/requests/:id/confirm-return', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/confirm-return`)
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ returnCode: '000000' });
 
     expect(res.status).toBe(400);
@@ -92,7 +92,7 @@ describe('PATCH /api/requests/:id/confirm-return', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/confirm-return`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ returnCode: '333444' });
 
     expect(res.status).toBe(403);
@@ -113,7 +113,7 @@ describe('PATCH /api/requests/:id/confirm-return', () => {
 
       const res = await request(app)
         .patch(`/api/requests/${requestId}/confirm-return`)
-        .set('Authorization', `Bearer ${borrower.accessToken}`)
+        .set('Cookie', `accessToken=${borrower.accessToken}`)
         .send({ returnCode: '333444' });
 
       expect(res.status).toBe(409);
@@ -125,7 +125,7 @@ describe('PATCH /api/requests/:id/confirm-return', () => {
     const borrower = await registerAndLogin();
     const res = await request(app)
       .patch('/api/requests/00000000-0000-0000-0000-000000000000/confirm-return')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ returnCode: '333444' });
     expect(res.status).toBe(404);
   });

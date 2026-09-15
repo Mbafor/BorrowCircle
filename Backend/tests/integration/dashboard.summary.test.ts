@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
@@ -22,7 +22,7 @@ describe('GET /api/dashboard/summary', () => {
     // PENDING should not count as an active borrow.
     await insertBorrowRequest({ itemId: itemC, borrowerId: me.userId, status: 'PENDING' });
 
-    const res = await request(app).get('/api/dashboard/summary').set('Authorization', `Bearer ${me.accessToken}`);
+    const res = await request(app).get('/api/dashboard/summary').set('Cookie', `accessToken=${me.accessToken}`);
 
     expect(res.body.activeBorrows).toBe(2);
   });
@@ -33,7 +33,7 @@ describe('GET /api/dashboard/summary', () => {
     const itemId = await insertItem({ ownerId: me.userId, status: 'BORROWED' });
     await insertBorrowRequest({ itemId, borrowerId: borrower.userId, status: 'BORROWED' });
 
-    const res = await request(app).get('/api/dashboard/summary').set('Authorization', `Bearer ${me.accessToken}`);
+    const res = await request(app).get('/api/dashboard/summary').set('Cookie', `accessToken=${me.accessToken}`);
 
     expect(res.body.activeBorrows).toBe(0);
   });
@@ -44,7 +44,7 @@ describe('GET /api/dashboard/summary', () => {
     await insertItem({ ownerId: me.userId, status: 'PAUSED' });
     await insertItem({ ownerId: me.userId, status: 'CANCELLED' });
 
-    const res = await request(app).get('/api/dashboard/summary').set('Authorization', `Bearer ${me.accessToken}`);
+    const res = await request(app).get('/api/dashboard/summary').set('Cookie', `accessToken=${me.accessToken}`);
 
     expect(res.body.itemsListed).toBe(2);
   });
@@ -61,7 +61,7 @@ describe('GET /api/dashboard/summary', () => {
     const theirItem = await insertItem({ ownerId: someoneElse.userId, status: 'AVAILABLE' });
     await insertBorrowRequest({ itemId: theirItem, borrowerId: me.userId, status: 'PENDING' });
 
-    const res = await request(app).get('/api/dashboard/summary').set('Authorization', `Bearer ${me.accessToken}`);
+    const res = await request(app).get('/api/dashboard/summary').set('Cookie', `accessToken=${me.accessToken}`);
 
     expect(res.body.pendingRequestsToReview).toBe(1);
   });
@@ -70,7 +70,7 @@ describe('GET /api/dashboard/summary', () => {
     const me = await registerAndLogin();
     await db.update(users).set({ averageRating: '4.50' }).where(eq(users.id, me.userId));
 
-    const res = await request(app).get('/api/dashboard/summary').set('Authorization', `Bearer ${me.accessToken}`);
+    const res = await request(app).get('/api/dashboard/summary').set('Cookie', `accessToken=${me.accessToken}`);
 
     expect(res.body.averageRating).toBe('4.50');
   });

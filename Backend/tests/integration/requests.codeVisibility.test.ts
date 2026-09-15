@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -21,7 +21,7 @@ describe('GET /api/requests/:id code visibility', () => {
 
     const res = await request(app)
       .get(`/api/requests/${requestId}`)
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.body.request.pickupCode).toBe('111222');
     expect(res.body.request.returnCode).toBeNull();
@@ -41,7 +41,7 @@ describe('GET /api/requests/:id code visibility', () => {
 
     const res = await request(app)
       .get(`/api/requests/${requestId}`)
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.body.request.pickupCode).toBe('111222');
     expect(res.body.request.returnCode).toBeNull();
@@ -60,18 +60,18 @@ describe('GET /api/requests/:id code visibility', () => {
 
     const beforePickup = await request(app)
       .get(`/api/requests/${requestId}`)
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
     expect(beforePickup.body.request.pickupCode).toBeNull();
     expect(beforePickup.body.request.returnCode).toBeNull();
 
     await request(app)
       .patch(`/api/requests/${requestId}/confirm-pickup`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ pickupCode: '111222' });
 
     const afterPickup = await request(app)
       .get(`/api/requests/${requestId}`)
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
     expect(afterPickup.body.request.pickupCode).toBeNull();
     expect(typeof afterPickup.body.request.returnCode).toBe('string');
   });
@@ -90,7 +90,7 @@ describe('GET /api/requests/mine code visibility', () => {
       returnCode: '333444',
     });
 
-    const res = await request(app).get('/api/requests/mine').set('Authorization', `Bearer ${borrower.accessToken}`);
+    const res = await request(app).get('/api/requests/mine').set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.body.requests[0].pickupCode).toBe('111222');
     expect(res.body.requests[0].returnCode).toBeNull();
@@ -113,7 +113,7 @@ describe('GET /api/requests/incoming code visibility', () => {
     const res = await request(app)
       .get('/api/requests/incoming')
       .query({ status: 'BORROWED' })
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(res.body.requests[0].returnCode).toBe('333444');
     expect(res.body.requests[0].pickupCode).toBeNull();

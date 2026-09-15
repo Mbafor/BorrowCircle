@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
@@ -19,7 +19,7 @@ describe('PATCH /api/requests/:id/cancel', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/cancel`)
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.request.status).toBe('CANCELLED');
@@ -35,7 +35,7 @@ describe('PATCH /api/requests/:id/cancel', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/cancel`)
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.request.status).toBe('CANCELLED');
@@ -54,7 +54,7 @@ describe('PATCH /api/requests/:id/cancel', () => {
 
     const acceptRes = await request(app)
       .patch(`/api/requests/${requestId}/accept`)
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
     expect(acceptRes.status).toBe(200);
     expect(acceptRes.body.request.status).toBe('ACCEPTED');
 
@@ -63,7 +63,7 @@ describe('PATCH /api/requests/:id/cancel', () => {
 
     const cancelRes = await request(app)
       .patch(`/api/requests/${requestId}/cancel`)
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
     expect(cancelRes.status).toBe(200);
     expect(cancelRes.body.request.status).toBe('CANCELLED');
 
@@ -81,7 +81,7 @@ describe('PATCH /api/requests/:id/cancel', () => {
 
       const res = await request(app)
         .patch(`/api/requests/${requestId}/cancel`)
-        .set('Authorization', `Bearer ${borrower.accessToken}`);
+        .set('Cookie', `accessToken=${borrower.accessToken}`);
 
       expect(res.status).toBe(409);
     },
@@ -96,7 +96,7 @@ describe('PATCH /api/requests/:id/cancel', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/cancel`)
-      .set('Authorization', `Bearer ${stranger.accessToken}`);
+      .set('Cookie', `accessToken=${stranger.accessToken}`);
 
     expect(res.status).toBe(403);
   });
@@ -109,7 +109,7 @@ describe('PATCH /api/requests/:id/cancel', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/cancel`)
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(res.status).toBe(403);
   });
@@ -118,7 +118,7 @@ describe('PATCH /api/requests/:id/cancel', () => {
     const someone = await registerAndLogin();
     const res = await request(app)
       .patch('/api/requests/00000000-0000-0000-0000-000000000000/cancel')
-      .set('Authorization', `Bearer ${someone.accessToken}`);
+      .set('Cookie', `accessToken=${someone.accessToken}`);
     expect(res.status).toBe(404);
   });
 

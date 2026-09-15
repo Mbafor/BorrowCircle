@@ -24,9 +24,19 @@ export function hashToken(rawToken: string): string {
   return crypto.createHash('sha256').update(rawToken).digest('hex');
 }
 
-export function signAccessToken(userId: string): string {
+export interface SignedAccessToken {
+  token: string;
+  expiresAt: Date;
+}
+
+export function signAccessToken(userId: string): SignedAccessToken {
   const options: jwt.SignOptions = { expiresIn: env.jwtAccessExpiresIn as jwt.SignOptions['expiresIn'] };
-  return jwt.sign({ sub: userId }, env.jwtAccessSecret, options);
+  const token = jwt.sign({ sub: userId }, env.jwtAccessSecret, options);
+  // Decoding our own freshly-signed token for its `exp` claim (rather than
+  // re-parsing the "15m"-style duration string) keeps the cookie's expiry
+  // guaranteed to match whatever jsonwebtoken actually encoded.
+  const decoded = jwt.decode(token) as { exp: number };
+  return { token, expiresAt: new Date(decoded.exp * 1000) };
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {

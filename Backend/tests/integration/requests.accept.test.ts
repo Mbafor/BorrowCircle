@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
@@ -20,7 +20,7 @@ describe('PATCH /api/requests/:id/accept', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/accept`)
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.request.status).toBe('ACCEPTED');
@@ -37,7 +37,7 @@ describe('PATCH /api/requests/:id/accept', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/accept`)
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
     expect(res.status).toBe(200);
     expect(res.body.request.pickupCode).toBeNull();
 
@@ -58,7 +58,7 @@ describe('PATCH /api/requests/:id/accept', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestA}/accept`)
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
     expect(res.status).toBe(200);
 
     const [bRow] = await db.select().from(borrowRequests).where(eq(borrowRequests.id, requestB));
@@ -78,7 +78,7 @@ describe('PATCH /api/requests/:id/accept', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/accept`)
-      .set('Authorization', `Bearer ${stranger.accessToken}`);
+      .set('Cookie', `accessToken=${stranger.accessToken}`);
 
     expect(res.status).toBe(403);
   });
@@ -93,7 +93,7 @@ describe('PATCH /api/requests/:id/accept', () => {
 
       const res = await request(app)
         .patch(`/api/requests/${requestId}/accept`)
-        .set('Authorization', `Bearer ${owner.accessToken}`);
+        .set('Cookie', `accessToken=${owner.accessToken}`);
 
       expect(res.status).toBe(409);
       expect(res.body.error).toContain(status);
@@ -104,7 +104,7 @@ describe('PATCH /api/requests/:id/accept', () => {
     const owner = await registerAndLogin();
     const res = await request(app)
       .patch('/api/requests/00000000-0000-0000-0000-000000000000/accept')
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
     expect(res.status).toBe(404);
   });
 
@@ -136,8 +136,8 @@ describe('PATCH /api/requests/:id/accept', () => {
     const requestB = await insertBorrowRequest({ itemId, borrowerId: borrowerB.userId, status: 'PENDING' });
 
     const [resA, resB] = await Promise.all([
-      request(app).patch(`/api/requests/${requestA}/accept`).set('Authorization', `Bearer ${owner.accessToken}`),
-      request(app).patch(`/api/requests/${requestB}/accept`).set('Authorization', `Bearer ${owner.accessToken}`),
+      request(app).patch(`/api/requests/${requestA}/accept`).set('Cookie', `accessToken=${owner.accessToken}`),
+      request(app).patch(`/api/requests/${requestB}/accept`).set('Cookie', `accessToken=${owner.accessToken}`),
     ]);
 
     const statuses = [resA.status, resB.status].sort();

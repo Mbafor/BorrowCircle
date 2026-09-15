@@ -1,8 +1,9 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase, insertItem, insertReport, insertUser } from '../setup/dbHelpers';
-import { registerAndLogin, registerAndLoginAdmin } from '../setup/authHelpers';
+import { registerAndLogin } from '../setup/authHelpers';
+import { createAdminUser } from '../setup/adminFactory';
 import { db } from '../../src/config/db';
 import { notifications, users } from '../../src/db/schema';
 
@@ -12,12 +13,12 @@ beforeEach(async () => {
 
 describe('GET /api/admin/users', () => {
   it('an admin sees ACTIVE, SUSPENDED, and DELETED users — unlike any public endpoint', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     await insertUser({ status: 'ACTIVE' });
     await insertUser({ status: 'SUSPENDED' });
     await insertUser({ status: 'DELETED' });
 
-    const res = await request(app).get('/api/admin/users').set('Authorization', `Bearer ${admin.accessToken}`);
+    const res = await request(app).get('/api/admin/users').set('Cookie', `accessToken=${admin.accessToken}`);
 
     expect(res.status).toBe(200);
     // admin itself + the 3 seeded users
@@ -29,7 +30,7 @@ describe('GET /api/admin/users', () => {
 
   it('a non-admin gets 403', async () => {
     const regular = await registerAndLogin();
-    const res = await request(app).get('/api/admin/users').set('Authorization', `Bearer ${regular.accessToken}`);
+    const res = await request(app).get('/api/admin/users').set('Cookie', `accessToken=${regular.accessToken}`);
     expect(res.status).toBe(403);
   });
 
@@ -39,7 +40,7 @@ describe('GET /api/admin/users', () => {
   });
 
   it('status filter and search narrow correctly and combine as AND', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     await insertUser({ fullName: 'Jane Suspended', status: 'SUSPENDED' });
     await insertUser({ fullName: 'Jane Active', status: 'ACTIVE' });
     await insertUser({ fullName: 'Other Suspended', status: 'SUSPENDED' });
@@ -47,7 +48,7 @@ describe('GET /api/admin/users', () => {
     const res = await request(app)
       .get('/api/admin/users')
       .query({ status: 'SUSPENDED', search: 'Jane' })
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.users).toHaveLength(1);
@@ -55,16 +56,16 @@ describe('GET /api/admin/users', () => {
   });
 
   it('rejects an unrecognized status value with 400', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const res = await request(app)
       .get('/api/admin/users')
       .query({ status: 'NOT_A_STATUS' })
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
     expect(res.status).toBe(400);
   });
 
   it('pagination works', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     for (let i = 0; i < 5; i += 1) {
       await insertUser();
     }
@@ -72,7 +73,7 @@ describe('GET /api/admin/users', () => {
     const res = await request(app)
       .get('/api/admin/users')
       .query({ page: 1, limit: 2 })
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
 
     expect(res.body.users).toHaveLength(2);
     // admin + 5 seeded = 6 total
@@ -82,7 +83,7 @@ describe('GET /api/admin/users', () => {
 
 describe('GET /api/admin/users/:id', () => {
   it('includes profile info, item count, and report history in both directions', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const target = await registerAndLogin();
     const otherUser = await registerAndLogin();
     await insertItem({ ownerId: target.userId });
@@ -92,7 +93,7 @@ describe('GET /api/admin/users/:id', () => {
 
     const res = await request(app)
       .get(`/api/admin/users/${target.userId}`)
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.user.id).toBe(target.userId);
@@ -103,10 +104,10 @@ describe('GET /api/admin/users/:id', () => {
   });
 
   it('404 for a nonexistent id', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const res = await request(app)
       .get('/api/admin/users/00000000-0000-0000-0000-000000000000')
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
     expect(res.status).toBe(404);
   });
 
@@ -115,7 +116,7 @@ describe('GET /api/admin/users/:id', () => {
     const target = await registerAndLogin();
     const res = await request(app)
       .get(`/api/admin/users/${target.userId}`)
-      .set('Authorization', `Bearer ${regular.accessToken}`);
+      .set('Cookie', `accessToken=${regular.accessToken}`);
     expect(res.status).toBe(403);
   });
 
@@ -128,12 +129,12 @@ describe('GET /api/admin/users/:id', () => {
 
 describe('POST /api/admin/users/:id/suspend', () => {
   it('succeeds on an ACTIVE user and sends an ACCOUNT_SUSPENDED notification', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const target = await registerAndLogin();
 
     const res = await request(app)
       .post(`/api/admin/users/${target.userId}/suspend`)
-      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .set('Cookie', `accessToken=${admin.accessToken}`)
       .send({ reason: 'Repeated policy violations' });
 
     expect(res.status).toBe(200);
@@ -149,36 +150,36 @@ describe('POST /api/admin/users/:id/suspend', () => {
   });
 
   it('rejects an already-SUSPENDED user with a clear error', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const targetId = await insertUser({ status: 'SUSPENDED' });
 
     const res = await request(app)
       .post(`/api/admin/users/${targetId}/suspend`)
-      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .set('Cookie', `accessToken=${admin.accessToken}`)
       .send({ reason: 'Already suspended' });
 
     expect(res.status).toBe(409);
   });
 
   it('rejects a DELETED user', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const targetId = await insertUser({ status: 'DELETED' });
 
     const res = await request(app)
       .post(`/api/admin/users/${targetId}/suspend`)
-      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .set('Cookie', `accessToken=${admin.accessToken}`)
       .send({ reason: 'Should not work' });
 
     expect(res.status).toBe(409);
   });
 
   it('requires a reason', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const target = await registerAndLogin();
 
     const res = await request(app)
       .post(`/api/admin/users/${target.userId}/suspend`)
-      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .set('Cookie', `accessToken=${admin.accessToken}`)
       .send({});
 
     expect(res.status).toBe(400);
@@ -190,7 +191,7 @@ describe('POST /api/admin/users/:id/suspend', () => {
 
     const res = await request(app)
       .post(`/api/admin/users/${target.userId}/suspend`)
-      .set('Authorization', `Bearer ${regular.accessToken}`)
+      .set('Cookie', `accessToken=${regular.accessToken}`)
       .send({ reason: 'Trying anyway' });
 
     expect(res.status).toBe(403);
@@ -205,12 +206,12 @@ describe('POST /api/admin/users/:id/suspend', () => {
 
 describe('POST /api/admin/users/:id/reactivate', () => {
   it('succeeds on a SUSPENDED user', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const targetId = await insertUser({ status: 'SUSPENDED' });
 
     const res = await request(app)
       .post(`/api/admin/users/${targetId}/reactivate`)
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.user.status).toBe('ACTIVE');
@@ -220,23 +221,23 @@ describe('POST /api/admin/users/:id/reactivate', () => {
   });
 
   it('rejects an ACTIVE user', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const target = await registerAndLogin();
 
     const res = await request(app)
       .post(`/api/admin/users/${target.userId}/reactivate`)
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
 
     expect(res.status).toBe(409);
   });
 
   it('rejects a DELETED user', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const targetId = await insertUser({ status: 'DELETED' });
 
     const res = await request(app)
       .post(`/api/admin/users/${targetId}/reactivate`)
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
 
     expect(res.status).toBe(409);
   });
@@ -247,7 +248,7 @@ describe('POST /api/admin/users/:id/reactivate', () => {
 
     const res = await request(app)
       .post(`/api/admin/users/${targetId}/reactivate`)
-      .set('Authorization', `Bearer ${regular.accessToken}`);
+      .set('Cookie', `accessToken=${regular.accessToken}`);
 
     expect(res.status).toBe(403);
   });

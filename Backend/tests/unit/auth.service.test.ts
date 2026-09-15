@@ -41,9 +41,10 @@ describe('token utils', () => {
 
   it('signs and verifies an access token round trip', () => {
     const userId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
-    const token = signAccessToken(userId);
+    const { token, expiresAt } = signAccessToken(userId);
     const payload = verifyAccessToken(token);
     expect(payload.sub).toBe(userId);
+    expect(expiresAt.getTime()).toBeGreaterThan(Date.now());
   });
 
   it('rejects a garbage access token', () => {

@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -13,7 +13,7 @@ describe('POST /api/users/me/photo', () => {
 
     const res = await request(app)
       .post('/api/users/me/photo')
-      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', `accessToken=${accessToken}`)
       .attach('photo', Buffer.from('fake-image-bytes'), { filename: 'avatar.png', contentType: 'image/png' });
 
     expect(res.status).toBe(200);
@@ -26,7 +26,7 @@ describe('POST /api/users/me/photo', () => {
 
     const res = await request(app)
       .post('/api/users/me/photo')
-      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', `accessToken=${accessToken}`)
       .attach('photo', Buffer.from('not an image'), { filename: 'notes.txt', contentType: 'text/plain' });
 
     expect(res.status).toBe(400);
@@ -38,7 +38,7 @@ describe('POST /api/users/me/photo', () => {
 
     const res = await request(app)
       .post('/api/users/me/photo')
-      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', `accessToken=${accessToken}`)
       .attach('photo', oversized, { filename: 'huge.png', contentType: 'image/png' });
 
     expect(res.status).toBe(400);
@@ -47,7 +47,7 @@ describe('POST /api/users/me/photo', () => {
   it('rejects a request with no file', async () => {
     const { accessToken } = await registerAndLogin();
 
-    const res = await request(app).post('/api/users/me/photo').set('Authorization', `Bearer ${accessToken}`);
+    const res = await request(app).post('/api/users/me/photo').set('Cookie', `accessToken=${accessToken}`);
 
     expect(res.status).toBe(400);
   });

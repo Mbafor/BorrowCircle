@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -19,7 +19,7 @@ describe('GET /api/requests/mine', () => {
     await insertBorrowRequest({ itemId: itemB, borrowerId: borrower.userId, status: 'CANCELLED' });
     await insertBorrowRequest({ itemId: itemA, borrowerId: otherBorrower.userId, status: 'PENDING' });
 
-    const res = await request(app).get('/api/requests/mine').set('Authorization', `Bearer ${borrower.accessToken}`);
+    const res = await request(app).get('/api/requests/mine').set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.requests).toHaveLength(2);
@@ -42,7 +42,7 @@ describe('GET /api/requests/mine', () => {
       expiresAt: new Date(Date.now() - 1000),
     });
 
-    const res = await request(app).get('/api/requests/mine').set('Authorization', `Bearer ${borrower.accessToken}`);
+    const res = await request(app).get('/api/requests/mine').set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.body.requests[0].status).toBe('EXPIRED');
   });
@@ -57,7 +57,7 @@ describe('GET /api/requests/:id', () => {
 
     const res = await request(app)
       .get(`/api/requests/${requestId}`)
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.request.id).toBe(requestId);
@@ -69,7 +69,7 @@ describe('GET /api/requests/:id', () => {
     const itemId = await insertItem({ ownerId: owner.userId });
     const requestId = await insertBorrowRequest({ itemId, borrowerId: borrower.userId });
 
-    const res = await request(app).get(`/api/requests/${requestId}`).set('Authorization', `Bearer ${owner.accessToken}`);
+    const res = await request(app).get(`/api/requests/${requestId}`).set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.request.id).toBe(requestId);
@@ -84,7 +84,7 @@ describe('GET /api/requests/:id', () => {
 
     const res = await request(app)
       .get(`/api/requests/${requestId}`)
-      .set('Authorization', `Bearer ${stranger.accessToken}`);
+      .set('Cookie', `accessToken=${stranger.accessToken}`);
 
     expect(res.status).toBe(404);
   });
@@ -93,7 +93,7 @@ describe('GET /api/requests/:id', () => {
     const someone = await registerAndLogin();
     const res = await request(app)
       .get('/api/requests/00000000-0000-0000-0000-000000000000')
-      .set('Authorization', `Bearer ${someone.accessToken}`);
+      .set('Cookie', `accessToken=${someone.accessToken}`);
     expect(res.status).toBe(404);
   });
 
@@ -120,7 +120,7 @@ describe('GET /api/requests/:id', () => {
 
     const res = await request(app)
       .get(`/api/requests/${requestId}`)
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.body.request.status).toBe('EXPIRED');
   });

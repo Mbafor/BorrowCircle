@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import jwt from 'jsonwebtoken';
 import { app } from '../setup/app';
 import { clearDatabase } from '../setup/dbHelpers';
@@ -12,7 +12,7 @@ beforeEach(async () => {
 });
 
 describe('POST /api/auth/refresh', () => {
-  it('exchanges a valid refresh token for a new access token for the same user', async () => {
+  it('exchanges a valid refresh token for a new access cookie for the same user, with no token in the body', async () => {
     const payload = validRegisterPayload();
     const registerRes = await request(app).post('/api/auth/register').send(payload);
     const userId = registerRes.body.user.id as string;
@@ -25,9 +25,11 @@ describe('POST /api/auth/refresh', () => {
       .post('/api/auth/refresh')
       .set('Cookie', [`refreshToken=${refreshToken}`]);
 
-    expect(res.status).toBe(200);
-    expect(typeof res.body.accessToken).toBe('string');
-    const decoded = jwt.decode(res.body.accessToken) as { sub: string };
+    expect(res.status).toBe(204);
+    expect(res.body.accessToken).toBeUndefined();
+    const newAccessToken = extractCookie(res, 'accessToken');
+    expect(newAccessToken).toEqual(expect.any(String));
+    const decoded = jwt.decode(newAccessToken as string) as { sub: string };
     expect(decoded.sub).toBe(userId);
   });
 
@@ -42,7 +44,7 @@ describe('POST /api/auth/refresh', () => {
     const firstRefresh = await request(app)
       .post('/api/auth/refresh')
       .set('Cookie', [`refreshToken=${refreshToken}`]);
-    expect(firstRefresh.status).toBe(200);
+    expect(firstRefresh.status).toBe(204);
 
     const secondRefresh = await request(app)
       .post('/api/auth/refresh')

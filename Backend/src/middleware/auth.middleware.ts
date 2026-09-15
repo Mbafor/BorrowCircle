@@ -1,9 +1,10 @@
 import { NextFunction, Request, Response } from 'express';
 import { verifyAccessToken } from '../utils/token';
 
+const ACCESS_COOKIE_NAME = 'accessToken';
+
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  const header = req.headers.authorization;
-  const token = header?.startsWith('Bearer ') ? header.slice('Bearer '.length) : undefined;
+  const token = req.cookies?.[ACCESS_COOKIE_NAME];
 
   if (!token) {
     res.status(401).json({ error: 'Authentication required' });
@@ -20,14 +21,13 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 }
 
 /**
- * Attaches req.userId when a valid access token is present, but never
- * rejects the request — used by endpoints that behave differently for an
- * owner vs. anyone else, but are still reachable anonymously (e.g. GET
+ * Attaches req.userId when a valid access token cookie is present, but
+ * never rejects the request — used by endpoints that behave differently for
+ * an owner vs. anyone else, but are still reachable anonymously (e.g. GET
  * /api/items/:id). A missing or invalid token is treated as anonymous.
  */
 export function attachUserIfPresent(req: Request, _res: Response, next: NextFunction): void {
-  const header = req.headers.authorization;
-  const token = header?.startsWith('Bearer ') ? header.slice('Bearer '.length) : undefined;
+  const token = req.cookies?.[ACCESS_COOKIE_NAME];
 
   if (token) {
     try {

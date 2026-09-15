@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -17,7 +17,7 @@ describe('GET /api/requests/incoming', () => {
     await insertBorrowRequest({ itemId: itemA, borrowerId: borrower.userId, status: 'PENDING' });
     await insertBorrowRequest({ itemId: itemB, borrowerId: borrower.userId, status: 'PENDING' });
 
-    const res = await request(app).get('/api/requests/incoming').set('Authorization', `Bearer ${ownerA.accessToken}`);
+    const res = await request(app).get('/api/requests/incoming').set('Cookie', `accessToken=${ownerA.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.requests).toHaveLength(1);
@@ -31,7 +31,7 @@ describe('GET /api/requests/incoming', () => {
     await insertBorrowRequest({ itemId, borrowerId: borrower.userId, status: 'PENDING' });
     await insertBorrowRequest({ itemId, borrowerId: borrower.userId, status: 'DECLINED' });
 
-    const res = await request(app).get('/api/requests/incoming').set('Authorization', `Bearer ${owner.accessToken}`);
+    const res = await request(app).get('/api/requests/incoming').set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(res.body.requests).toHaveLength(1);
     expect(res.body.requests[0].status).toBe('PENDING');
@@ -47,7 +47,7 @@ describe('GET /api/requests/incoming', () => {
     const res = await request(app)
       .get('/api/requests/incoming')
       .query({ status: 'DECLINED' })
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(res.body.requests).toHaveLength(1);
     expect(res.body.requests[0].status).toBe('DECLINED');
@@ -58,7 +58,7 @@ describe('GET /api/requests/incoming', () => {
     const res = await request(app)
       .get('/api/requests/incoming')
       .query({ status: 'NOT_A_STATUS' })
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
     expect(res.status).toBe(400);
   });
 
@@ -73,7 +73,7 @@ describe('GET /api/requests/incoming', () => {
     const res = await request(app)
       .get('/api/requests/incoming')
       .query({ itemId: itemA })
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(res.body.requests).toHaveLength(1);
     expect(res.body.requests[0].itemId).toBe(itemA);
@@ -89,7 +89,7 @@ describe('GET /api/requests/incoming', () => {
     const res = await request(app)
       .get('/api/requests/incoming')
       .query({ itemId: otherItem })
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.requests).toEqual([]);

@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { and, eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
@@ -32,7 +32,7 @@ describe('notification events', () => {
 
     const res = await request(app)
       .post('/api/requests')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ itemId, pickupDate: futureDate(1), returnDate: futureDate(3) });
     const requestId = res.body.request.id as string;
 
@@ -50,7 +50,7 @@ describe('notification events', () => {
 
     await request(app)
       .patch(`/api/requests/${requestId}/cancel`)
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
 
     const ownerNotifications = await notificationsFor(owner.userId, 'REQUEST_CANCELLED');
     expect(ownerNotifications).toHaveLength(1);
@@ -86,7 +86,7 @@ describe('notification events', () => {
 
     await request(app)
       .patch(`/api/requests/${winningRequest}/accept`)
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
 
     const winnerNotifications = await notificationsFor(winner.userId, 'REQUEST_ACCEPTED');
     expect(winnerNotifications).toHaveLength(1);
@@ -106,7 +106,7 @@ describe('notification events', () => {
 
     await request(app)
       .patch(`/api/requests/${requestId}/decline`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ reason: 'Already lent it out' });
 
     const borrowerNotifications = await notificationsFor(borrower.userId, 'REQUEST_DECLINED');
@@ -128,7 +128,7 @@ describe('notification events', () => {
 
     await request(app)
       .patch(`/api/requests/${requestId}/confirm-pickup`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ pickupCode: '111222' });
 
     const ownerNotifications = await notificationsFor(owner.userId, 'HANDOVER_CONFIRMED');
@@ -152,7 +152,7 @@ describe('notification events', () => {
 
     await request(app)
       .patch(`/api/requests/${requestId}/confirm-return`)
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ returnCode: '333444' });
 
     const ownerNotifications = await notificationsFor(owner.userId, 'RETURN_CONFIRMED');
@@ -172,7 +172,7 @@ describe('notification events', () => {
 
     await request(app)
       .patch(`/api/items/${itemId}/status`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ status: 'CANCELLED' });
 
     const aNotifications = await notificationsFor(borrowerA.userId, 'ITEM_CANCELLED');
@@ -197,7 +197,7 @@ describe('notification events', () => {
 
     await request(app)
       .patch(`/api/requests/${winningRequest}/accept`)
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
 
     const allWinnerNotifications = await notificationsFor(winner.userId);
     const allLoserNotifications = await notificationsFor(loser.userId);

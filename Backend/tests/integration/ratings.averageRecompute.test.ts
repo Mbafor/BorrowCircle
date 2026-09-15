@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
@@ -19,7 +19,7 @@ describe('average rating recompute', () => {
 
     await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${borrowerA.accessToken}`)
+      .set('Cookie', `accessToken=${borrowerA.accessToken}`)
       .send({ borrowRequestId: requestA, score: 5 });
 
     const [row] = await db.select().from(users).where(eq(users.id, owner.userId));
@@ -41,7 +41,7 @@ describe('average rating recompute', () => {
 
     await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${borrowerA.accessToken}`)
+      .set('Cookie', `accessToken=${borrowerA.accessToken}`)
       .send({ borrowRequestId: requestA, score: 5 });
 
     const [afterFirst] = await db.select().from(users).where(eq(users.id, owner.userId));
@@ -49,7 +49,7 @@ describe('average rating recompute', () => {
 
     await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${borrowerB.accessToken}`)
+      .set('Cookie', `accessToken=${borrowerB.accessToken}`)
       .send({ borrowRequestId: requestB, score: 2 });
 
     const [afterSecond] = await db.select().from(users).where(eq(users.id, owner.userId));

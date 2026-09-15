@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
@@ -19,7 +19,7 @@ describe('PATCH /api/requests/:id/decline', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/decline`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ reason: 'Already lent it to a friend' });
 
     expect(res.status).toBe(200);
@@ -35,7 +35,7 @@ describe('PATCH /api/requests/:id/decline', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/decline`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({});
 
     expect(res.status).toBe(200);
@@ -51,7 +51,7 @@ describe('PATCH /api/requests/:id/decline', () => {
 
     await request(app)
       .patch(`/api/requests/${requestId}/decline`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({});
 
     const [item] = await db.select().from(items).where(eq(items.id, itemId));
@@ -66,7 +66,7 @@ describe('PATCH /api/requests/:id/decline', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/decline`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ reason: 'a'.repeat(301) });
 
     expect(res.status).toBe(400);
@@ -81,7 +81,7 @@ describe('PATCH /api/requests/:id/decline', () => {
 
     const res = await request(app)
       .patch(`/api/requests/${requestId}/decline`)
-      .set('Authorization', `Bearer ${stranger.accessToken}`)
+      .set('Cookie', `accessToken=${stranger.accessToken}`)
       .send({});
 
     expect(res.status).toBe(403);
@@ -97,7 +97,7 @@ describe('PATCH /api/requests/:id/decline', () => {
 
       const res = await request(app)
         .patch(`/api/requests/${requestId}/decline`)
-        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .set('Cookie', `accessToken=${owner.accessToken}`)
         .send({});
 
       expect(res.status).toBe(409);
@@ -109,7 +109,7 @@ describe('PATCH /api/requests/:id/decline', () => {
     const owner = await registerAndLogin();
     const res = await request(app)
       .patch('/api/requests/00000000-0000-0000-0000-000000000000/decline')
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({});
     expect(res.status).toBe(404);
   });

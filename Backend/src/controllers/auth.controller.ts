@@ -4,7 +4,21 @@ import * as authService from '../services/auth.service';
 import { UnauthorizedError } from '../utils/errors';
 import { ForgotPasswordBody, LoginBody, RegisterBody, ResetPasswordBody } from '../validation/auth.validation';
 
+const ACCESS_COOKIE_NAME = 'accessToken';
 const REFRESH_COOKIE_NAME = 'refreshToken';
+
+// The access cookie must ride along on every API route (requireAuth runs on
+// almost all of them), so it gets the default '/' path. The refresh cookie
+// stays scoped to /api/auth — it's only ever needed there, and narrowing its
+// path keeps it out of every other request unnecessarily.
+function setAccessCookie(res: Response, token: string, expiresAt: Date): void {
+  res.cookie(ACCESS_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'lax',
+    expires: expiresAt,
+  });
+}
 
 function setRefreshCookie(res: Response, token: string, expiresAt: Date): void {
   res.cookie(REFRESH_COOKIE_NAME, token, {
@@ -14,6 +28,15 @@ function setRefreshCookie(res: Response, token: string, expiresAt: Date): void {
     expires: expiresAt,
     path: '/api/auth',
   });
+}
+
+function setSessionCookies(res: Response, session: authService.Session): void {
+  setAccessCookie(res, session.accessToken, session.accessTokenExpiresAt);
+  setRefreshCookie(res, session.refreshToken, session.refreshTokenExpiresAt);
+}
+
+function clearAccessCookie(res: Response): void {
+  res.clearCookie(ACCESS_COOKIE_NAME);
 }
 
 function clearRefreshCookie(res: Response): void {
@@ -34,8 +57,8 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
   try {
     const { email, password } = req.body as LoginBody;
     const { user, session } = await authService.loginUser(email, password);
-    setRefreshCookie(res, session.refreshToken, session.refreshTokenExpiresAt);
-    res.json({ user, accessToken: session.accessToken });
+    setSessionCookies(res, session);
+    res.json({ user });
   } catch (err) {
     next(err);
   }
@@ -47,6 +70,7 @@ export async function logout(req: Request, res: Response, next: NextFunction): P
     if (rawRefreshToken) {
       await authService.logoutUser(rawRefreshToken);
     }
+    clearAccessCookie(res);
     clearRefreshCookie(res);
     res.status(204).send();
   } catch (err) {
@@ -61,8 +85,8 @@ export async function refresh(req: Request, res: Response, next: NextFunction): 
       throw new UnauthorizedError('Missing refresh token');
     }
     const session = await authService.refreshSession(rawRefreshToken);
-    setRefreshCookie(res, session.refreshToken, session.refreshTokenExpiresAt);
-    res.json({ accessToken: session.accessToken });
+    setSessionCookies(res, session);
+    res.status(204).send();
   } catch (err) {
     next(err);
   }

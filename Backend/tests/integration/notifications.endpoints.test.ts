@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase, insertItem, insertNotification } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -18,7 +18,7 @@ describe('GET /api/notifications', () => {
     const newer = await insertNotification({ userId: userA.userId, targetId: itemA });
     await insertNotification({ userId: userB.userId, targetId: itemA });
 
-    const res = await request(app).get('/api/notifications').set('Authorization', `Bearer ${userA.accessToken}`);
+    const res = await request(app).get('/api/notifications').set('Cookie', `accessToken=${userA.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.notifications.map((n: { id: string }) => n.id)).toEqual([newer, older]);
@@ -33,14 +33,14 @@ describe('GET /api/notifications', () => {
     const unreadRes = await request(app)
       .get('/api/notifications')
       .query({ read: 'false' })
-      .set('Authorization', `Bearer ${user.accessToken}`);
+      .set('Cookie', `accessToken=${user.accessToken}`);
     expect(unreadRes.body.notifications).toHaveLength(1);
     expect(unreadRes.body.notifications[0].isRead).toBe(false);
 
     const readRes = await request(app)
       .get('/api/notifications')
       .query({ read: 'true' })
-      .set('Authorization', `Bearer ${user.accessToken}`);
+      .set('Cookie', `accessToken=${user.accessToken}`);
     expect(readRes.body.notifications).toHaveLength(1);
     expect(readRes.body.notifications[0].isRead).toBe(true);
   });
@@ -55,7 +55,7 @@ describe('GET /api/notifications', () => {
     const page1 = await request(app)
       .get('/api/notifications')
       .query({ page: 1, limit: 2 })
-      .set('Authorization', `Bearer ${user.accessToken}`);
+      .set('Cookie', `accessToken=${user.accessToken}`);
 
     expect(page1.body.notifications).toHaveLength(2);
     expect(page1.body.pagination).toEqual({ page: 1, limit: 2, totalItems: 5, totalPages: 3 });
@@ -76,14 +76,14 @@ describe('GET /api/notifications/unread-count', () => {
 
     const before = await request(app)
       .get('/api/notifications/unread-count')
-      .set('Authorization', `Bearer ${user.accessToken}`);
+      .set('Cookie', `accessToken=${user.accessToken}`);
     expect(before.body.count).toBe(2);
 
-    await request(app).patch(`/api/notifications/${n1}/read`).set('Authorization', `Bearer ${user.accessToken}`);
+    await request(app).patch(`/api/notifications/${n1}/read`).set('Cookie', `accessToken=${user.accessToken}`);
 
     const after = await request(app)
       .get('/api/notifications/unread-count')
-      .set('Authorization', `Bearer ${user.accessToken}`);
+      .set('Cookie', `accessToken=${user.accessToken}`);
     expect(after.body.count).toBe(1);
   });
 
@@ -102,11 +102,11 @@ describe('PATCH /api/notifications/:id/read', () => {
 
     const res = await request(app)
       .patch(`/api/notifications/${target}/read`)
-      .set('Authorization', `Bearer ${user.accessToken}`);
+      .set('Cookie', `accessToken=${user.accessToken}`);
     expect(res.status).toBe(200);
     expect(res.body.notification.isRead).toBe(true);
 
-    const list = await request(app).get('/api/notifications').set('Authorization', `Bearer ${user.accessToken}`);
+    const list = await request(app).get('/api/notifications').set('Cookie', `accessToken=${user.accessToken}`);
     const otherRow = list.body.notifications.find((n: { id: string }) => n.id === other);
     expect(otherRow.isRead).toBe(false);
   });
@@ -119,7 +119,7 @@ describe('PATCH /api/notifications/:id/read', () => {
 
     const res = await request(app)
       .patch(`/api/notifications/${notificationId}/read`)
-      .set('Authorization', `Bearer ${stranger.accessToken}`);
+      .set('Cookie', `accessToken=${stranger.accessToken}`);
 
     expect(res.status).toBe(403);
   });
@@ -128,7 +128,7 @@ describe('PATCH /api/notifications/:id/read', () => {
     const user = await registerAndLogin();
     const res = await request(app)
       .patch('/api/notifications/00000000-0000-0000-0000-000000000000/read')
-      .set('Authorization', `Bearer ${user.accessToken}`);
+      .set('Cookie', `accessToken=${user.accessToken}`);
     expect(res.status).toBe(404);
   });
 
@@ -150,14 +150,14 @@ describe('PATCH /api/notifications/read-all', () => {
 
     const res = await request(app)
       .patch('/api/notifications/read-all')
-      .set('Authorization', `Bearer ${user.accessToken}`);
+      .set('Cookie', `accessToken=${user.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.markedCount).toBe(2);
 
     const countRes = await request(app)
       .get('/api/notifications/unread-count')
-      .set('Authorization', `Bearer ${user.accessToken}`);
+      .set('Cookie', `accessToken=${user.accessToken}`);
     expect(countRes.body.count).toBe(0);
   });
 
@@ -168,11 +168,11 @@ describe('PATCH /api/notifications/read-all', () => {
     await insertNotification({ userId: userA.userId, targetId: itemId });
     await insertNotification({ userId: userB.userId, targetId: itemId });
 
-    await request(app).patch('/api/notifications/read-all').set('Authorization', `Bearer ${userA.accessToken}`);
+    await request(app).patch('/api/notifications/read-all').set('Cookie', `accessToken=${userA.accessToken}`);
 
     const bCount = await request(app)
       .get('/api/notifications/unread-count')
-      .set('Authorization', `Bearer ${userB.accessToken}`);
+      .set('Cookie', `accessToken=${userB.accessToken}`);
     expect(bCount.body.count).toBe(1);
   });
 

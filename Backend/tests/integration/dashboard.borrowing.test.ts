@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -18,7 +18,7 @@ describe('GET /api/dashboard/borrowing', () => {
 
     const res = await request(app)
       .get('/api/dashboard/borrowing')
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.requests).toHaveLength(1);
@@ -35,7 +35,7 @@ describe('GET /api/dashboard/borrowing', () => {
 
     const res = await request(app)
       .get('/api/dashboard/borrowing')
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.body.requests.map((r: { id: string }) => r.id)).toEqual([newer, older]);
     expect(res.body.requests[0].itemTitle).toBe('The Item');
@@ -53,7 +53,7 @@ describe('GET /api/dashboard/borrowing', () => {
 
     const res = await request(app)
       .get('/api/dashboard/borrowing')
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
 
     const statuses = res.body.requests.map((r: { status: string }) => r.status).sort();
     expect(statuses).toEqual(['CANCELLED', 'DECLINED', 'EXPIRED']);
@@ -69,7 +69,7 @@ describe('GET /api/dashboard/borrowing', () => {
     const res = await request(app)
       .get('/api/dashboard/borrowing')
       .query({ status: 'DECLINED' })
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.body.requests).toHaveLength(1);
     expect(res.body.requests[0].status).toBe('DECLINED');
@@ -80,7 +80,7 @@ describe('GET /api/dashboard/borrowing', () => {
     const res = await request(app)
       .get('/api/dashboard/borrowing')
       .query({ status: 'NOT_A_STATUS' })
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
     expect(res.status).toBe(400);
   });
 
@@ -95,7 +95,7 @@ describe('GET /api/dashboard/borrowing', () => {
     const page1 = await request(app)
       .get('/api/dashboard/borrowing')
       .query({ page: 1, limit: 2 })
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(page1.body.requests).toHaveLength(2);
     expect(page1.body.pagination).toEqual({ page: 1, limit: 2, totalItems: 5, totalPages: 3 });
