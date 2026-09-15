@@ -1,8 +1,9 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem, insertReport } from '../setup/dbHelpers';
-import { registerAndLogin, registerAndLoginAdmin } from '../setup/authHelpers';
+import { registerAndLogin } from '../setup/authHelpers';
+import { createAdminUser } from '../setup/adminFactory';
 import { db } from '../../src/config/db';
 import { borrowRequests, items, notifications, reports, users } from '../../src/db/schema';
 
@@ -14,7 +15,7 @@ describe('POST /api/reports/:id/remove-item', () => {
   it.each(['AVAILABLE', 'PAUSED'] as const)(
     'succeeds on an ITEM-targeted report when the item is %s: item becomes REMOVED, PENDING requests cancel, report becomes REVIEWED',
     async (status) => {
-      const admin = await registerAndLoginAdmin();
+      const admin = await createAdminUser();
       const owner = await registerAndLogin();
       const borrower = await registerAndLogin();
       const reporter = await registerAndLogin();
@@ -24,7 +25,7 @@ describe('POST /api/reports/:id/remove-item', () => {
 
       const res = await request(app)
         .post(`/api/reports/${reportId}/remove-item`)
-        .set('Authorization', `Bearer ${admin.accessToken}`);
+        .set('Cookie', `accessToken=${admin.accessToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.report.status).toBe('REVIEWED');
@@ -43,7 +44,7 @@ describe('POST /api/reports/:id/remove-item', () => {
   );
 
   it.each(['RESERVED', 'BORROWED', 'OVERDUE'] as const)('is rejected when the item is %s', async (status) => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const owner = await registerAndLogin();
     const reporter = await registerAndLogin();
     const itemId = await insertItem({ ownerId: owner.userId, status });
@@ -51,7 +52,7 @@ describe('POST /api/reports/:id/remove-item', () => {
 
     const res = await request(app)
       .post(`/api/reports/${reportId}/remove-item`)
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
 
     expect(res.status).toBe(409);
 
@@ -63,14 +64,14 @@ describe('POST /api/reports/:id/remove-item', () => {
   });
 
   it('is rejected on a USER-targeted report', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const target = await registerAndLogin();
     const reporter = await registerAndLogin();
     const reportId = await insertReport({ reporterId: reporter.userId, targetType: 'USER', targetId: target.userId });
 
     const res = await request(app)
       .post(`/api/reports/${reportId}/remove-item`)
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
 
     expect(res.status).toBe(409);
   });
@@ -84,13 +85,13 @@ describe('POST /api/reports/:id/remove-item', () => {
 
     const res = await request(app)
       .post(`/api/reports/${reportId}/remove-item`)
-      .set('Authorization', `Bearer ${regular.accessToken}`);
+      .set('Cookie', `accessToken=${regular.accessToken}`);
 
     expect(res.status).toBe(403);
   });
 
   it('is rejected if the report is already REVIEWED', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const owner = await registerAndLogin();
     const reporter = await registerAndLogin();
     const itemId = await insertItem({ ownerId: owner.userId, status: 'AVAILABLE' });
@@ -103,7 +104,7 @@ describe('POST /api/reports/:id/remove-item', () => {
 
     const res = await request(app)
       .post(`/api/reports/${reportId}/remove-item`)
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
 
     expect(res.status).toBe(409);
   });
@@ -111,14 +112,14 @@ describe('POST /api/reports/:id/remove-item', () => {
 
 describe('POST /api/reports/:id/suspend-user', () => {
   it('succeeds on a USER-targeted report: user becomes SUSPENDED, report becomes REVIEWED', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const target = await registerAndLogin();
     const reporter = await registerAndLogin();
     const reportId = await insertReport({ reporterId: reporter.userId, targetType: 'USER', targetId: target.userId });
 
     const res = await request(app)
       .post(`/api/reports/${reportId}/suspend-user`)
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.report.status).toBe('REVIEWED');
@@ -133,7 +134,7 @@ describe('POST /api/reports/:id/suspend-user', () => {
   });
 
   it('is rejected on an ITEM-targeted report', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const owner = await registerAndLogin();
     const reporter = await registerAndLogin();
     const itemId = await insertItem({ ownerId: owner.userId });
@@ -141,7 +142,7 @@ describe('POST /api/reports/:id/suspend-user', () => {
 
     const res = await request(app)
       .post(`/api/reports/${reportId}/suspend-user`)
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
 
     expect(res.status).toBe(409);
   });
@@ -154,13 +155,13 @@ describe('POST /api/reports/:id/suspend-user', () => {
 
     const res = await request(app)
       .post(`/api/reports/${reportId}/suspend-user`)
-      .set('Authorization', `Bearer ${regular.accessToken}`);
+      .set('Cookie', `accessToken=${regular.accessToken}`);
 
     expect(res.status).toBe(403);
   });
 
   it('is rejected if the report is already REVIEWED', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const target = await registerAndLogin();
     const reporter = await registerAndLogin();
     const reportId = await insertReport({
@@ -172,7 +173,7 @@ describe('POST /api/reports/:id/suspend-user', () => {
 
     const res = await request(app)
       .post(`/api/reports/${reportId}/suspend-user`)
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
 
     expect(res.status).toBe(409);
   });

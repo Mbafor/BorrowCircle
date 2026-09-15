@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -19,12 +19,12 @@ describe('dashboard isolation between users', () => {
     await insertBorrowRequest({ itemId: itemA, borrowerId: userB.userId, status: 'PENDING' });
 
     const [lendingA, lendingB, borrowingA, borrowingB, summaryA, summaryB] = await Promise.all([
-      request(app).get('/api/dashboard/lending').set('Authorization', `Bearer ${userA.accessToken}`),
-      request(app).get('/api/dashboard/lending').set('Authorization', `Bearer ${userB.accessToken}`),
-      request(app).get('/api/dashboard/borrowing').set('Authorization', `Bearer ${userA.accessToken}`),
-      request(app).get('/api/dashboard/borrowing').set('Authorization', `Bearer ${userB.accessToken}`),
-      request(app).get('/api/dashboard/summary').set('Authorization', `Bearer ${userA.accessToken}`),
-      request(app).get('/api/dashboard/summary').set('Authorization', `Bearer ${userB.accessToken}`),
+      request(app).get('/api/dashboard/lending').set('Cookie', `accessToken=${userA.accessToken}`),
+      request(app).get('/api/dashboard/lending').set('Cookie', `accessToken=${userB.accessToken}`),
+      request(app).get('/api/dashboard/borrowing').set('Cookie', `accessToken=${userA.accessToken}`),
+      request(app).get('/api/dashboard/borrowing').set('Cookie', `accessToken=${userB.accessToken}`),
+      request(app).get('/api/dashboard/summary').set('Cookie', `accessToken=${userA.accessToken}`),
+      request(app).get('/api/dashboard/summary').set('Cookie', `accessToken=${userB.accessToken}`),
     ]);
 
     expect(lendingA.body.items).toHaveLength(1);

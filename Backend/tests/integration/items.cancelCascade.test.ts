@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
@@ -82,7 +82,7 @@ describe('PATCH /api/items/:id/status — cancellation cascade', () => {
 
     const res = await request(app)
       .patch(`/api/items/${itemId}/status`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ status: 'CANCELLED' });
 
     expect(res.status).toBe(200);
@@ -104,7 +104,7 @@ describe('PATCH /api/items/:id/status — cancellation cascade', () => {
 
     const res = await request(app)
       .patch(`/api/items/${itemId}/status`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ status: 'CANCELLED' });
     expect(res.status).toBe(200);
 
@@ -123,7 +123,7 @@ describe('PATCH /api/items/:id/status — cancellation cascade', () => {
 
     const res = await request(app)
       .patch(`/api/items/${itemId}/status`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ status: 'CANCELLED' });
     expect(res.status).toBe(200);
     expect(res.body.item.status).toBe('CANCELLED');
@@ -140,7 +140,7 @@ describe('PATCH /api/items/:id/status — cancellation cascade', () => {
 
     const res = await request(app)
       .patch(`/api/items/${itemId}/status`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ status: 'PAUSED' });
     expect(res.status).toBe(200);
     expect(res.body.item.status).toBe('PAUSED');
@@ -155,7 +155,7 @@ describe('PATCH /api/items/:id/status — cancellation cascade', () => {
 
     const res = await request(app)
       .patch(`/api/items/${itemId}/status`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ status: 'CANCELLED' });
 
     expect(res.status).toBe(200);
@@ -174,7 +174,7 @@ describe('PATCH /api/items/:id/status — cancellation cascade', () => {
 
     const res = await request(app)
       .patch(`/api/items/${itemId}/status`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ status: 'CANCELLED' });
 
     expect(res.status).toBe(409);
@@ -194,7 +194,7 @@ describe('PATCH /api/items/:id/status — cancellation cascade', () => {
 
     const res = await request(app)
       .patch(`/api/items/${itemId}/status`)
-      .set('Authorization', `Bearer ${stranger.accessToken}`)
+      .set('Cookie', `accessToken=${stranger.accessToken}`)
       .send({ status: 'CANCELLED' });
 
     expect(res.status).toBe(403);

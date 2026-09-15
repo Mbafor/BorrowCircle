@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase, insertItem } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -30,7 +30,7 @@ describe('POST /api/requests', () => {
 
     const res = await request(app)
       .post('/api/requests')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send(validRequestBody(itemId, { message: 'Need it for a lab report' }));
 
     expect(res.status).toBe(201);
@@ -47,7 +47,7 @@ describe('POST /api/requests', () => {
 
     const res = await request(app)
       .post('/api/requests')
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send(validRequestBody(itemId));
 
     expect(res.status).toBe(403);
@@ -62,7 +62,7 @@ describe('POST /api/requests', () => {
 
       const res = await request(app)
         .post('/api/requests')
-        .set('Authorization', `Bearer ${borrower.accessToken}`)
+        .set('Cookie', `accessToken=${borrower.accessToken}`)
         .send(validRequestBody(itemId));
 
       expect(res.status).toBe(409);
@@ -77,13 +77,13 @@ describe('POST /api/requests', () => {
 
     const first = await request(app)
       .post('/api/requests')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send(validRequestBody(itemId));
     expect(first.status).toBe(201);
 
     const second = await request(app)
       .post('/api/requests')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send(validRequestBody(itemId));
 
     expect(second.status).toBe(409);
@@ -96,7 +96,7 @@ describe('POST /api/requests', () => {
 
     const res = await request(app)
       .post('/api/requests')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send(validRequestBody(itemId, { pickupDate: futureDate(5), returnDate: futureDate(2) }));
 
     expect(res.status).toBe(400);
@@ -110,7 +110,7 @@ describe('POST /api/requests', () => {
 
     const res = await request(app)
       .post('/api/requests')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send(validRequestBody(itemId, { pickupDate: futureDate(-3) }));
 
     expect(res.status).toBe(400);
@@ -122,7 +122,7 @@ describe('POST /api/requests', () => {
 
     const res = await request(app)
       .post('/api/requests')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send(validRequestBody('00000000-0000-0000-0000-000000000000'));
 
     expect(res.status).toBe(404);

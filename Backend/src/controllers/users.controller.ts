@@ -17,7 +17,7 @@ export async function getMe(req: Request, res: Response, next: NextFunction): Pr
 
 export async function getPublicProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = await usersService.getPublicProfile(req.params.id);
+    const user = await usersService.getPublicProfile(req.params.id, req.userId);
     res.json({ user });
   } catch (err) {
     next(err);

@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase, insertItem } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -14,7 +14,7 @@ describe('POST /api/items/:id/images', () => {
 
     const res = await request(app)
       .post(`/api/items/${itemId}/images`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .attach('images', Buffer.from('fake-image-bytes'), { filename: 'a.png', contentType: 'image/png' });
 
     expect(res.status).toBe(200);
@@ -27,7 +27,7 @@ describe('POST /api/items/:id/images', () => {
 
     const res = await request(app)
       .post(`/api/items/${itemId}/images`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .attach('images', Buffer.from('a'), { filename: 'a.png', contentType: 'image/png' })
       .attach('images', Buffer.from('b'), { filename: 'b.png', contentType: 'image/png' })
       .attach('images', Buffer.from('c'), { filename: 'c.png', contentType: 'image/png' });
@@ -42,7 +42,7 @@ describe('POST /api/items/:id/images', () => {
 
     const res = await request(app)
       .post(`/api/items/${itemId}/images`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .attach('images', Buffer.from('a'), { filename: 'a.png', contentType: 'image/png' })
       .attach('images', Buffer.from('b'), { filename: 'b.png', contentType: 'image/png' })
       .attach('images', Buffer.from('c'), { filename: 'c.png', contentType: 'image/png' })
@@ -57,7 +57,7 @@ describe('POST /api/items/:id/images', () => {
 
     const res = await request(app)
       .post(`/api/items/${itemId}/images`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .attach('images', Buffer.from('not an image'), { filename: 'notes.txt', contentType: 'text/plain' });
 
     expect(res.status).toBe(400);
@@ -70,7 +70,7 @@ describe('POST /api/items/:id/images', () => {
 
     const res = await request(app)
       .post(`/api/items/${itemId}/images`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .attach('images', oversized, { filename: 'huge.png', contentType: 'image/png' });
 
     expect(res.status).toBe(400);
@@ -83,7 +83,7 @@ describe('POST /api/items/:id/images', () => {
 
     const res = await request(app)
       .post(`/api/items/${itemId}/images`)
-      .set('Authorization', `Bearer ${other.accessToken}`)
+      .set('Cookie', `accessToken=${other.accessToken}`)
       .attach('images', Buffer.from('fake-image-bytes'), { filename: 'a.png', contentType: 'image/png' });
 
     expect(res.status).toBe(403);

@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -13,7 +13,7 @@ describe('PATCH /api/users/me', () => {
 
     const res = await request(app)
       .patch('/api/users/me')
-      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', `accessToken=${accessToken}`)
       .send({ fullName: 'Updated Name', bio: 'New bio', location: 'Unity Hall' });
 
     expect(res.status).toBe(200);
@@ -28,7 +28,7 @@ describe('PATCH /api/users/me', () => {
 
     const res = await request(app)
       .patch('/api/users/me')
-      .set('Authorization', `Bearer ${userB.accessToken}`)
+      .set('Cookie', `accessToken=${userB.accessToken}`)
       .send({ phoneNumber: userA.payload.phoneNumber });
 
     expect(res.status).toBe(409);
@@ -39,7 +39,7 @@ describe('PATCH /api/users/me', () => {
 
     const res = await request(app)
       .patch('/api/users/me')
-      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', `accessToken=${accessToken}`)
       .send({ phoneNumber: payload.phoneNumber });
 
     expect(res.status).toBe(200);
@@ -50,7 +50,7 @@ describe('PATCH /api/users/me', () => {
 
     const res = await request(app)
       .patch('/api/users/me')
-      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', `accessToken=${accessToken}`)
       .send({ location: 'Nonexistent Hall' });
 
     expect(res.status).toBe(400);
@@ -62,7 +62,7 @@ describe('PATCH /api/users/me', () => {
 
     const res = await request(app)
       .patch('/api/users/me')
-      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', `accessToken=${accessToken}`)
       .send({ bio: 'a'.repeat(501) });
 
     expect(res.status).toBe(400);
@@ -80,7 +80,7 @@ describe('PATCH /api/users/me', () => {
 
     const res = await request(app)
       .patch('/api/users/me')
-      .set('Authorization', `Bearer ${userB.accessToken}`)
+      .set('Cookie', `accessToken=${userB.accessToken}`)
       .send({ fullName: 'Only Mine To Change' });
 
     expect(res.status).toBe(200);

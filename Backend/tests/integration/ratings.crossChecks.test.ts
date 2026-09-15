@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { and, eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
@@ -19,7 +19,7 @@ describe('rating notification', () => {
 
     await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ borrowRequestId: requestId, score: 5 });
 
     const ownerNotifications = await db
@@ -40,7 +40,7 @@ describe('rating notification', () => {
 
     await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ borrowRequestId: requestId, score: 5 });
 
     const reviewerNotifications = await db
@@ -61,17 +61,17 @@ describe('cross-check with Feature 9 dashboard summary', () => {
 
     const before = await request(app)
       .get('/api/dashboard/summary')
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
     expect(before.body.averageRating).toBe('0.00');
 
     await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ borrowRequestId: requestId, score: 4 });
 
     const after = await request(app)
       .get('/api/dashboard/summary')
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
     expect(after.body.averageRating).toBe('4.00');
   });
 });

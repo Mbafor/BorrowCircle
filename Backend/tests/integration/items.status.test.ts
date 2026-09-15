@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase, insertItem } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -10,7 +10,7 @@ beforeEach(async () => {
 async function patchStatus(itemId: string, accessToken: string, status: string) {
   return request(app)
     .patch(`/api/items/${itemId}/status`)
-    .set('Authorization', `Bearer ${accessToken}`)
+    .set('Cookie', `accessToken=${accessToken}`)
     .send({ status });
 }
 

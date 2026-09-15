@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase, insertItem } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -14,7 +14,7 @@ describe('PATCH /api/items/:id', () => {
 
     const res = await request(app)
       .patch(`/api/items/${itemId}`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ title: 'Updated Title' });
 
     expect(res.status).toBe(200);
@@ -27,7 +27,7 @@ describe('PATCH /api/items/:id', () => {
 
     const res = await request(app)
       .patch(`/api/items/${itemId}`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ title: 'Nope' });
 
     expect(res.status).toBe(409);
@@ -39,7 +39,7 @@ describe('PATCH /api/items/:id', () => {
 
     const res = await request(app)
       .patch(`/api/items/${itemId}`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ pricePerDay: 10 });
 
     expect(res.status).toBe(400);
@@ -51,7 +51,7 @@ describe('PATCH /api/items/:id', () => {
 
     const res = await request(app)
       .patch(`/api/items/${itemId}`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ pricePerDay: null });
 
     expect(res.status).toBe(400);
@@ -63,7 +63,7 @@ describe('PATCH /api/items/:id', () => {
 
     const res = await request(app)
       .patch(`/api/items/${itemId}`)
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ pricePerDay: 12.5 });
 
     expect(res.status).toBe(200);
@@ -77,7 +77,7 @@ describe('PATCH /api/items/:id', () => {
 
     const res = await request(app)
       .patch(`/api/items/${itemId}`)
-      .set('Authorization', `Bearer ${other.accessToken}`)
+      .set('Cookie', `accessToken=${other.accessToken}`)
       .send({ title: 'Hijacked' });
 
     expect(res.status).toBe(403);
@@ -97,7 +97,7 @@ describe('DELETE /api/items/:id', () => {
     const owner = await registerAndLogin();
     const itemId = await insertItem({ ownerId: owner.userId, status });
 
-    const res = await request(app).delete(`/api/items/${itemId}`).set('Authorization', `Bearer ${owner.accessToken}`);
+    const res = await request(app).delete(`/api/items/${itemId}`).set('Cookie', `accessToken=${owner.accessToken}`);
     expect(res.status).toBe(204);
   });
 
@@ -105,7 +105,7 @@ describe('DELETE /api/items/:id', () => {
     const owner = await registerAndLogin();
     const itemId = await insertItem({ ownerId: owner.userId, status });
 
-    const res = await request(app).delete(`/api/items/${itemId}`).set('Authorization', `Bearer ${owner.accessToken}`);
+    const res = await request(app).delete(`/api/items/${itemId}`).set('Cookie', `accessToken=${owner.accessToken}`);
     expect(res.status).toBe(409);
   });
 
@@ -114,7 +114,7 @@ describe('DELETE /api/items/:id', () => {
     const other = await registerAndLogin();
     const itemId = await insertItem({ ownerId: owner.userId, status: 'AVAILABLE' });
 
-    const res = await request(app).delete(`/api/items/${itemId}`).set('Authorization', `Bearer ${other.accessToken}`);
+    const res = await request(app).delete(`/api/items/${itemId}`).set('Cookie', `accessToken=${other.accessToken}`);
     expect(res.status).toBe(403);
   });
 

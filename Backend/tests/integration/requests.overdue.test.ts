@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
@@ -105,7 +105,7 @@ describe('lazy overdue check on GET endpoints', () => {
 
     const res = await request(app)
       .get(`/api/requests/${requestId}`)
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.body.request.status).toBe('OVERDUE');
   });
@@ -121,7 +121,7 @@ describe('lazy overdue check on GET endpoints', () => {
       returnDate: daysFromToday(-2),
     });
 
-    const res = await request(app).get('/api/requests/mine').set('Authorization', `Bearer ${borrower.accessToken}`);
+    const res = await request(app).get('/api/requests/mine').set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.body.requests[0].status).toBe('OVERDUE');
   });

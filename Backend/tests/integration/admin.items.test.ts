@@ -1,8 +1,9 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
-import { registerAndLogin, registerAndLoginAdmin } from '../setup/authHelpers';
+import { registerAndLogin } from '../setup/authHelpers';
+import { createAdminUser } from '../setup/adminFactory';
 import { db } from '../../src/config/db';
 import { borrowRequests, items, notifications } from '../../src/db/schema';
 
@@ -12,14 +13,14 @@ beforeEach(async () => {
 
 describe('GET /api/admin/items', () => {
   it('returns items of every status, including ones public browse would never return', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const owner = await registerAndLogin();
     await insertItem({ ownerId: owner.userId, status: 'AVAILABLE', title: 'Avail' });
     await insertItem({ ownerId: owner.userId, status: 'PAUSED', title: 'Paused' });
     await insertItem({ ownerId: owner.userId, status: 'CANCELLED', title: 'Cancelled' });
     await insertItem({ ownerId: owner.userId, status: 'REMOVED', title: 'Removed' });
 
-    const res = await request(app).get('/api/admin/items').set('Authorization', `Bearer ${admin.accessToken}`);
+    const res = await request(app).get('/api/admin/items').set('Cookie', `accessToken=${admin.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.pagination.totalItems).toBe(4);
@@ -28,7 +29,7 @@ describe('GET /api/admin/items', () => {
   });
 
   it('status filter narrows to a single status not visible on public browse', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const owner = await registerAndLogin();
     await insertItem({ ownerId: owner.userId, status: 'AVAILABLE' });
     await insertItem({ ownerId: owner.userId, status: 'CANCELLED' });
@@ -36,14 +37,14 @@ describe('GET /api/admin/items', () => {
     const res = await request(app)
       .get('/api/admin/items')
       .query({ status: 'CANCELLED' })
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
 
     expect(res.body.items).toHaveLength(1);
     expect(res.body.items[0].status).toBe('CANCELLED');
   });
 
   it('search filters by title/description and combines with status as AND', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const owner = await registerAndLogin();
     await insertItem({ ownerId: owner.userId, status: 'PAUSED', title: 'Graphing Calculator' });
     await insertItem({ ownerId: owner.userId, status: 'AVAILABLE', title: 'Graphing Calculator' });
@@ -52,7 +53,7 @@ describe('GET /api/admin/items', () => {
     const res = await request(app)
       .get('/api/admin/items')
       .query({ status: 'PAUSED', search: 'Graphing' })
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
 
     expect(res.body.items).toHaveLength(1);
     expect(res.body.items[0].title).toBe('Graphing Calculator');
@@ -60,17 +61,17 @@ describe('GET /api/admin/items', () => {
   });
 
   it('rejects an unrecognized status value with 400', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const res = await request(app)
       .get('/api/admin/items')
       .query({ status: 'NOT_A_STATUS' })
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
     expect(res.status).toBe(400);
   });
 
   it('a non-admin gets 403', async () => {
     const regular = await registerAndLogin();
-    const res = await request(app).get('/api/admin/items').set('Authorization', `Bearer ${regular.accessToken}`);
+    const res = await request(app).get('/api/admin/items').set('Cookie', `accessToken=${regular.accessToken}`);
     expect(res.status).toBe(403);
   });
 
@@ -84,7 +85,7 @@ describe('POST /api/admin/items/:id/remove', () => {
   it.each(['AVAILABLE', 'PAUSED'] as const)(
     'succeeds when the item is %s: item becomes REMOVED, any PENDING request cancels, owner is notified',
     async (status) => {
-      const admin = await registerAndLoginAdmin();
+      const admin = await createAdminUser();
       const owner = await registerAndLogin();
       const borrower = await registerAndLogin();
       const itemId = await insertItem({ ownerId: owner.userId, status });
@@ -92,7 +93,7 @@ describe('POST /api/admin/items/:id/remove', () => {
 
       const res = await request(app)
         .post(`/api/admin/items/${itemId}/remove`)
-        .set('Authorization', `Bearer ${admin.accessToken}`);
+        .set('Cookie', `accessToken=${admin.accessToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.item.status).toBe('REMOVED');
@@ -111,13 +112,13 @@ describe('POST /api/admin/items/:id/remove', () => {
   it.each(['RESERVED', 'BORROWED', 'OVERDUE'] as const)(
     'is rejected when the item is %s, matching Feature 12\'s existing behavior exactly',
     async (status) => {
-      const admin = await registerAndLoginAdmin();
+      const admin = await createAdminUser();
       const owner = await registerAndLogin();
       const itemId = await insertItem({ ownerId: owner.userId, status });
 
       const res = await request(app)
         .post(`/api/admin/items/${itemId}/remove`)
-        .set('Authorization', `Bearer ${admin.accessToken}`);
+        .set('Cookie', `accessToken=${admin.accessToken}`);
 
       expect(res.status).toBe(409);
 
@@ -127,10 +128,10 @@ describe('POST /api/admin/items/:id/remove', () => {
   );
 
   it('404 for a nonexistent item id', async () => {
-    const admin = await registerAndLoginAdmin();
+    const admin = await createAdminUser();
     const res = await request(app)
       .post('/api/admin/items/00000000-0000-0000-0000-000000000000/remove')
-      .set('Authorization', `Bearer ${admin.accessToken}`);
+      .set('Cookie', `accessToken=${admin.accessToken}`);
     expect(res.status).toBe(404);
   });
 
@@ -141,7 +142,7 @@ describe('POST /api/admin/items/:id/remove', () => {
 
     const res = await request(app)
       .post(`/api/admin/items/${itemId}/remove`)
-      .set('Authorization', `Bearer ${regular.accessToken}`);
+      .set('Cookie', `accessToken=${regular.accessToken}`);
 
     expect(res.status).toBe(403);
   });

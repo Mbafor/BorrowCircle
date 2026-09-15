@@ -16,6 +16,7 @@ import reportsRoutes from './routes/reports.routes';
 import adminRoutes from './routes/admin.routes';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { errorHandler } from './middleware/errorHandler';
+import { requireCsrfHeader } from './middleware/csrf.middleware';
 
 export function createApp(): Application {
   const app = express();
@@ -24,6 +25,7 @@ export function createApp(): Application {
   app.use(cors({ origin: env.frontendUrl, credentials: true }));
   app.use(express.json());
   app.use(cookieParser());
+  app.use(requireCsrfHeader);
 
   if (!isProduction && !isTest) {
     app.use(morgan('dev'));

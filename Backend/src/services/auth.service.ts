@@ -31,6 +31,7 @@ export interface PublicUser {
 
 export interface Session {
   accessToken: string;
+  accessTokenExpiresAt: Date;
   refreshToken: string;
   refreshTokenExpiresAt: Date;
 }
@@ -61,7 +62,7 @@ export function isAllowedEmailDomain(email: string): boolean {
 }
 
 async function issueSession(userId: string): Promise<Session> {
-  const accessToken = signAccessToken(userId);
+  const { token: accessToken, expiresAt: accessTokenExpiresAt } = signAccessToken(userId);
   const rawRefreshToken = generateRandomToken();
   const refreshTokenExpiresAt = new Date(
     Date.now() + env.refreshTokenExpiresInDays * 24 * 60 * 60 * 1000,
@@ -73,7 +74,7 @@ async function issueSession(userId: string): Promise<Session> {
     expiresAt: refreshTokenExpiresAt,
   });
 
-  return { accessToken, refreshToken: rawRefreshToken, refreshTokenExpiresAt };
+  return { accessToken, accessTokenExpiresAt, refreshToken: rawRefreshToken, refreshTokenExpiresAt };
 }
 
 export async function registerUser(input: RegisterInput): Promise<PublicUser> {

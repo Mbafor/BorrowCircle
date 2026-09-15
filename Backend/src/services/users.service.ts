@@ -1,8 +1,14 @@
-import { and, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne, notInArray, or } from 'drizzle-orm';
 import { db, DbTransaction } from '../config/db';
-import { items, refreshTokens, users } from '../db/schema';
+import { borrowRequests, items, refreshTokens, users } from '../db/schema';
 import { ConflictError, NotFoundError } from '../utils/errors';
 import { createNotification } from './notifications.service';
+
+// A request state that means the two users have actually met/are meeting
+// face-to-face for a handover, which is when a phone number becomes useful
+// (and safe) to share — everything before ACCEPTED is still just a request,
+// and everything after BORROWED (RETURNED, etc.) is over.
+const PHONE_VISIBLE_REQUEST_STATUSES = ['ACCEPTED', 'BORROWED'] as const;
 
 export type UserRow = typeof users.$inferSelect;
 
@@ -57,9 +63,12 @@ function toProfileItem(item: typeof items.$inferSelect): ProfileItem {
   };
 }
 
-async function getItemsForOwner(ownerId: string, options: { excludeCancelled?: boolean } = {}): Promise<ProfileItem[]> {
-  const condition = options.excludeCancelled
-    ? and(eq(items.ownerId, ownerId), notInArray(items.status, ['CANCELLED']))
+async function getItemsForOwner(ownerId: string, options: { publicOnly?: boolean } = {}): Promise<ProfileItem[]> {
+  // A cancelled or admin-removed listing is dead either way — neither
+  // belongs in front of a public/semi-public audience, only in the owner's
+  // own view (getOwnProfile, which omits this option).
+  const condition = options.publicOnly
+    ? and(eq(items.ownerId, ownerId), notInArray(items.status, ['CANCELLED', 'REMOVED']))
     : eq(items.ownerId, ownerId);
   const rows = await db.select().from(items).where(condition);
   return rows.map(toProfileItem);
@@ -90,16 +99,40 @@ export async function getOwnProfile(userId: string): Promise<Profile> {
   return toProfile(user, ownedItems, true);
 }
 
-// TODO(borrow-requests): a viewer who has an ACCEPTED borrow request with this
-// user should also see the phone number. Until the borrow_requests table and
-// its status transitions exist, the phone number is always hidden here.
-export async function getPublicProfile(userId: string): Promise<Profile> {
+/**
+ * True when an ACCEPTED or BORROWED request exists between the two users,
+ * in either direction (viewer borrowing from the profile owner, or the
+ * profile owner borrowing from the viewer) — the condition under which a
+ * phone number becomes visible on a public profile. One query: the join and
+ * OR are pushed into the WHERE clause so this is a single existence check,
+ * not a fetch-then-filter.
+ */
+async function hasPhoneVisibleRequestBetween(viewerId: string, profileOwnerId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: borrowRequests.id })
+    .from(borrowRequests)
+    .innerJoin(items, eq(borrowRequests.itemId, items.id))
+    .where(
+      and(
+        inArray(borrowRequests.status, [...PHONE_VISIBLE_REQUEST_STATUSES]),
+        or(
+          and(eq(borrowRequests.borrowerId, viewerId), eq(items.ownerId, profileOwnerId)),
+          and(eq(borrowRequests.borrowerId, profileOwnerId), eq(items.ownerId, viewerId)),
+        ),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
+export async function getPublicProfile(userId: string, viewerId?: string): Promise<Profile> {
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!user) {
     throw new NotFoundError('User not found');
   }
-  const ownedItems = await getItemsForOwner(userId, { excludeCancelled: true });
-  return toProfile(user, ownedItems, false);
+  const ownedItems = await getItemsForOwner(userId, { publicOnly: true });
+  const canSeePhone = viewerId ? await hasPhoneVisibleRequestBetween(viewerId, userId) : false;
+  return toProfile(user, ownedItems, canSeePhone);
 }
 
 export async function updateProfile(userId: string, input: UpdateProfileInput): Promise<Profile> {

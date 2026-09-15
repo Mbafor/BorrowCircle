@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -14,7 +14,7 @@ describe('GET /api/dashboard/lending', () => {
     await insertItem({ ownerId: owner.userId, title: 'Mine' });
     await insertItem({ ownerId: otherOwner.userId, title: 'Not mine' });
 
-    const res = await request(app).get('/api/dashboard/lending').set('Authorization', `Bearer ${owner.accessToken}`);
+    const res = await request(app).get('/api/dashboard/lending').set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.items).toHaveLength(1);
@@ -25,7 +25,7 @@ describe('GET /api/dashboard/lending', () => {
     const owner = await registerAndLogin();
     await insertItem({ ownerId: owner.userId });
 
-    const res = await request(app).get('/api/dashboard/lending').set('Authorization', `Bearer ${owner.accessToken}`);
+    const res = await request(app).get('/api/dashboard/lending').set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(res.body.items[0].activeRequest).toBeNull();
     expect(res.body.items[0].pendingRequestCount).toBe(0);
@@ -37,7 +37,7 @@ describe('GET /api/dashboard/lending', () => {
     const itemId = await insertItem({ ownerId: owner.userId });
     await insertBorrowRequest({ itemId, borrowerId: borrower.userId, status: 'PENDING' });
 
-    const res = await request(app).get('/api/dashboard/lending').set('Authorization', `Bearer ${owner.accessToken}`);
+    const res = await request(app).get('/api/dashboard/lending').set('Cookie', `accessToken=${owner.accessToken}`);
 
     const item = res.body.items[0];
     expect(item.activeRequest).not.toBeNull();
@@ -76,7 +76,7 @@ describe('GET /api/dashboard/lending', () => {
       expiresAt: new Date(Date.now() + 3000),
     });
 
-    const res = await request(app).get('/api/dashboard/lending').set('Authorization', `Bearer ${owner.accessToken}`);
+    const res = await request(app).get('/api/dashboard/lending').set('Cookie', `accessToken=${owner.accessToken}`);
 
     const item = res.body.items[0];
     expect(item.activeRequest.id).toBe(mostRecent);
@@ -90,7 +90,7 @@ describe('GET /api/dashboard/lending', () => {
     const itemId = await insertItem({ ownerId: owner.userId, status: 'BORROWED' });
     const requestId = await insertBorrowRequest({ itemId, borrowerId: borrower.userId, status: 'BORROWED' });
 
-    const res = await request(app).get('/api/dashboard/lending').set('Authorization', `Bearer ${owner.accessToken}`);
+    const res = await request(app).get('/api/dashboard/lending').set('Cookie', `accessToken=${owner.accessToken}`);
 
     const item = res.body.items[0];
     expect(item.activeRequest.id).toBe(requestId);
@@ -106,7 +106,7 @@ describe('GET /api/dashboard/lending', () => {
     const res = await request(app)
       .get('/api/dashboard/lending')
       .query({ status: 'PAUSED' })
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(res.body.items).toHaveLength(1);
     expect(res.body.items[0].title).toBe('Paused One');
@@ -117,7 +117,7 @@ describe('GET /api/dashboard/lending', () => {
     const res = await request(app)
       .get('/api/dashboard/lending')
       .query({ status: 'NOT_A_STATUS' })
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
     expect(res.status).toBe(400);
   });
 
@@ -130,11 +130,11 @@ describe('GET /api/dashboard/lending', () => {
     const page1 = await request(app)
       .get('/api/dashboard/lending')
       .query({ page: 1, limit: 2 })
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
     const page2 = await request(app)
       .get('/api/dashboard/lending')
       .query({ page: 2, limit: 2 })
-      .set('Authorization', `Bearer ${owner.accessToken}`);
+      .set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(page1.body.items).toHaveLength(2);
     expect(page2.body.items).toHaveLength(2);

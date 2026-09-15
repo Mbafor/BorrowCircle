@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase, insertItem, insertReport } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -15,7 +15,7 @@ describe('POST /api/reports', () => {
 
     const res = await request(app)
       .post('/api/reports')
-      .set('Authorization', `Bearer ${reporter.accessToken}`)
+      .set('Cookie', `accessToken=${reporter.accessToken}`)
       .send({ targetType: 'ITEM', targetId: itemId, reason: 'Inappropriate content', note: 'Looks like spam' });
 
     expect(res.status).toBe(201);
@@ -29,7 +29,7 @@ describe('POST /api/reports', () => {
 
     const res = await request(app)
       .post('/api/reports')
-      .set('Authorization', `Bearer ${reporter.accessToken}`)
+      .set('Cookie', `accessToken=${reporter.accessToken}`)
       .send({ targetType: 'USER', targetId: target.userId, reason: 'Harassment' });
 
     expect(res.status).toBe(201);
@@ -42,7 +42,7 @@ describe('POST /api/reports', () => {
 
     const res = await request(app)
       .post('/api/reports')
-      .set('Authorization', `Bearer ${reporter.accessToken}`)
+      .set('Cookie', `accessToken=${reporter.accessToken}`)
       .send({ targetType: 'ITEM', targetId: '00000000-0000-0000-0000-000000000000', reason: 'Fake' });
 
     expect(res.status).toBe(404);
@@ -56,7 +56,7 @@ describe('POST /api/reports', () => {
 
     const res = await request(app)
       .post('/api/reports')
-      .set('Authorization', `Bearer ${reporter.accessToken}`)
+      .set('Cookie', `accessToken=${reporter.accessToken}`)
       .send({ targetType: 'ITEM', targetId: itemId, reason: 'Still bad' });
 
     expect(res.status).toBe(409);
@@ -70,7 +70,7 @@ describe('POST /api/reports', () => {
 
     const res = await request(app)
       .post('/api/reports')
-      .set('Authorization', `Bearer ${reporter.accessToken}`)
+      .set('Cookie', `accessToken=${reporter.accessToken}`)
       .send({ targetType: 'ITEM', targetId: itemId, reason: 'Still an issue' });
 
     expect(res.status).toBe(201);
@@ -83,7 +83,7 @@ describe('POST /api/reports', () => {
 
     const res = await request(app)
       .post('/api/reports')
-      .set('Authorization', `Bearer ${reporter.accessToken}`)
+      .set('Cookie', `accessToken=${reporter.accessToken}`)
       .send({ targetType: 'ITEM', targetId: itemId, reason: 'a'.repeat(101) });
 
     expect(res.status).toBe(400);

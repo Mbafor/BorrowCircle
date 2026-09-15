@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -14,7 +14,7 @@ describe('POST /api/items', () => {
 
     const res = await request(app)
       .post('/api/items')
-      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', `accessToken=${accessToken}`)
       .send(validItemPayload());
 
     expect(res.status).toBe(201);
@@ -28,7 +28,7 @@ describe('POST /api/items', () => {
 
     const res = await request(app)
       .post('/api/items')
-      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', `accessToken=${accessToken}`)
       .send(validItemPayload({ borrowType: 'PAID', pricePerDay: 5 }));
 
     expect(res.status).toBe(201);
@@ -41,7 +41,7 @@ describe('POST /api/items', () => {
 
     const res = await request(app)
       .post('/api/items')
-      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', `accessToken=${accessToken}`)
       .send(validItemPayload({ borrowType: 'PAID' }));
 
     expect(res.status).toBe(400);
@@ -53,7 +53,7 @@ describe('POST /api/items', () => {
 
     const res = await request(app)
       .post('/api/items')
-      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', `accessToken=${accessToken}`)
       .send(validItemPayload({ pricePerDay: 5 }));
 
     expect(res.status).toBe(400);
@@ -65,7 +65,7 @@ describe('POST /api/items', () => {
 
     const res = await request(app)
       .post('/api/items')
-      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', `accessToken=${accessToken}`)
       .send(validItemPayload({ category: 'Furniture' }));
 
     expect(res.status).toBe(400);
@@ -77,7 +77,7 @@ describe('POST /api/items', () => {
 
     const res = await request(app)
       .post('/api/items')
-      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Cookie', `accessToken=${accessToken}`)
       .send(validItemPayload({ location: 'Nowhere' }));
 
     expect(res.status).toBe(400);
@@ -89,7 +89,7 @@ describe('POST /api/items', () => {
     const payload = validItemPayload();
     delete (payload as Record<string, unknown>).title;
 
-    const res = await request(app).post('/api/items').set('Authorization', `Bearer ${accessToken}`).send(payload);
+    const res = await request(app).post('/api/items').set('Cookie', `accessToken=${accessToken}`).send(payload);
 
     expect(res.status).toBe(400);
     expect(res.body.fields.title).toBeDefined();
@@ -100,7 +100,7 @@ describe('POST /api/items', () => {
     const payload = validItemPayload();
     delete (payload as Record<string, unknown>).description;
 
-    const res = await request(app).post('/api/items').set('Authorization', `Bearer ${accessToken}`).send(payload);
+    const res = await request(app).post('/api/items').set('Cookie', `accessToken=${accessToken}`).send(payload);
 
     expect(res.status).toBe(400);
     expect(res.body.fields.description).toBeDefined();

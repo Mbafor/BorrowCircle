@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem, insertRating } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -16,7 +16,7 @@ describe('GET /api/ratings/my-pending', () => {
 
     const res = await request(app)
       .get('/api/ratings/my-pending')
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.pending).toHaveLength(1);
@@ -31,7 +31,7 @@ describe('GET /api/ratings/my-pending', () => {
     const itemId = await insertItem({ ownerId: owner.userId });
     const requestId = await insertBorrowRequest({ itemId, borrowerId: borrower.userId, status: 'RETURNED' });
 
-    const res = await request(app).get('/api/ratings/my-pending').set('Authorization', `Bearer ${owner.accessToken}`);
+    const res = await request(app).get('/api/ratings/my-pending').set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(res.body.pending).toHaveLength(1);
     expect(res.body.pending[0].otherParticipantName).toBe(borrower.payload.fullName);
@@ -46,7 +46,7 @@ describe('GET /api/ratings/my-pending', () => {
 
     const res = await request(app)
       .get('/api/ratings/my-pending')
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.body.pending).toHaveLength(0);
   });
@@ -59,7 +59,7 @@ describe('GET /api/ratings/my-pending', () => {
     // Borrower already rated; owner hasn't.
     await insertRating({ borrowRequestId: requestId, reviewerId: borrower.userId, revieweeId: owner.userId });
 
-    const res = await request(app).get('/api/ratings/my-pending').set('Authorization', `Bearer ${owner.accessToken}`);
+    const res = await request(app).get('/api/ratings/my-pending').set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(res.body.pending).toHaveLength(1);
   });
@@ -72,7 +72,7 @@ describe('GET /api/ratings/my-pending', () => {
 
     const res = await request(app)
       .get('/api/ratings/my-pending')
-      .set('Authorization', `Bearer ${borrower.accessToken}`);
+      .set('Cookie', `accessToken=${borrower.accessToken}`);
 
     expect(res.body.pending).toHaveLength(0);
   });
@@ -86,7 +86,7 @@ describe('GET /api/ratings/my-pending', () => {
 
     const res = await request(app)
       .get('/api/ratings/my-pending')
-      .set('Authorization', `Bearer ${stranger.accessToken}`);
+      .set('Cookie', `accessToken=${stranger.accessToken}`);
 
     expect(res.body.pending).toHaveLength(0);
   });

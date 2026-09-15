@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase, insertItem } from '../setup/dbHelpers';
@@ -15,7 +15,7 @@ describe('DELETE /api/users/me', () => {
   it('succeeds and anonymizes the profile when the user has no reserved/borrowed items', async () => {
     const { userId, accessToken } = await registerAndLogin();
 
-    const res = await request(app).delete('/api/users/me').set('Authorization', `Bearer ${accessToken}`);
+    const res = await request(app).delete('/api/users/me').set('Cookie', `accessToken=${accessToken}`);
     expect(res.status).toBe(204);
 
     const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
@@ -29,7 +29,7 @@ describe('DELETE /api/users/me', () => {
     const { userId, accessToken } = await registerAndLogin();
     await insertItem({ ownerId: userId, status: 'RESERVED' });
 
-    const res = await request(app).delete('/api/users/me').set('Authorization', `Bearer ${accessToken}`);
+    const res = await request(app).delete('/api/users/me').set('Cookie', `accessToken=${accessToken}`);
 
     expect(res.status).toBe(409);
     expect(res.body.error).toBeDefined();
@@ -42,7 +42,7 @@ describe('DELETE /api/users/me', () => {
     const { userId, accessToken } = await registerAndLogin();
     await insertItem({ ownerId: userId, status: 'BORROWED' });
 
-    const res = await request(app).delete('/api/users/me').set('Authorization', `Bearer ${accessToken}`);
+    const res = await request(app).delete('/api/users/me').set('Cookie', `accessToken=${accessToken}`);
 
     expect(res.status).toBe(409);
   });
@@ -52,7 +52,7 @@ describe('DELETE /api/users/me', () => {
     const availableId = await insertItem({ ownerId: userId, status: 'AVAILABLE', title: 'Item A' });
     const pausedId = await insertItem({ ownerId: userId, status: 'PAUSED', title: 'Item B' });
 
-    const res = await request(app).delete('/api/users/me').set('Authorization', `Bearer ${accessToken}`);
+    const res = await request(app).delete('/api/users/me').set('Cookie', `accessToken=${accessToken}`);
     expect(res.status).toBe(204);
 
     const availableItems = await db.select().from(items).where(eq(items.status, 'AVAILABLE'));
@@ -76,7 +76,7 @@ describe('DELETE /api/users/me', () => {
       .send({ email: payload.email, password: payload.password });
     const refreshToken = extractCookie(loginRes, 'refreshToken');
 
-    const deleteRes = await request(app).delete('/api/users/me').set('Authorization', `Bearer ${accessToken}`);
+    const deleteRes = await request(app).delete('/api/users/me').set('Cookie', `accessToken=${accessToken}`);
     expect(deleteRes.status).toBe(204);
 
     const refreshRes = await request(app)

@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { app } from '../setup/app';
 import { clearDatabase, insertItem } from '../setup/dbHelpers';
 import { registerAndLogin } from '../setup/authHelpers';
@@ -12,7 +12,7 @@ describe('GET /api/items/:id', () => {
     const owner = await registerAndLogin();
     const itemId = await insertItem({ ownerId: owner.userId, status: 'PAUSED' });
 
-    const res = await request(app).get(`/api/items/${itemId}`).set('Authorization', `Bearer ${owner.accessToken}`);
+    const res = await request(app).get(`/api/items/${itemId}`).set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.item.status).toBe('PAUSED');
@@ -22,7 +22,7 @@ describe('GET /api/items/:id', () => {
     const owner = await registerAndLogin();
     const itemId = await insertItem({ ownerId: owner.userId, status: 'CANCELLED' });
 
-    const res = await request(app).get(`/api/items/${itemId}`).set('Authorization', `Bearer ${owner.accessToken}`);
+    const res = await request(app).get(`/api/items/${itemId}`).set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.item.status).toBe('CANCELLED');
@@ -35,7 +35,7 @@ describe('GET /api/items/:id', () => {
       const other = await registerAndLogin();
       const itemId = await insertItem({ ownerId: owner.userId, status });
 
-      const asOther = await request(app).get(`/api/items/${itemId}`).set('Authorization', `Bearer ${other.accessToken}`);
+      const asOther = await request(app).get(`/api/items/${itemId}`).set('Cookie', `accessToken=${other.accessToken}`);
       expect(asOther.status).toBe(200);
 
       const anonymous = await request(app).get(`/api/items/${itemId}`);
@@ -48,7 +48,7 @@ describe('GET /api/items/:id', () => {
     const other = await registerAndLogin();
     const itemId = await insertItem({ ownerId: owner.userId, status });
 
-    const asOther = await request(app).get(`/api/items/${itemId}`).set('Authorization', `Bearer ${other.accessToken}`);
+    const asOther = await request(app).get(`/api/items/${itemId}`).set('Cookie', `accessToken=${other.accessToken}`);
     expect(asOther.status).toBe(404);
 
     const anonymous = await request(app).get(`/api/items/${itemId}`);
@@ -69,7 +69,7 @@ describe('GET /api/items/mine', () => {
     await insertItem({ ownerId: owner.userId, status: 'PAUSED', title: 'Mine 2' });
     await insertItem({ ownerId: other.userId, status: 'AVAILABLE', title: 'Not mine' });
 
-    const res = await request(app).get('/api/items/mine').set('Authorization', `Bearer ${owner.accessToken}`);
+    const res = await request(app).get('/api/items/mine').set('Cookie', `accessToken=${owner.accessToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.items).toHaveLength(2);

@@ -1,4 +1,4 @@
-import request from 'supertest';
+import request from '../setup/request';
 import { eq } from 'drizzle-orm';
 import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem, insertRating } from '../setup/dbHelpers';
@@ -19,7 +19,7 @@ describe('POST /api/ratings', () => {
 
     const res = await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ borrowRequestId: requestId, score: 5, comment: 'Great lender!' });
 
     expect(res.status).toBe(201);
@@ -36,13 +36,13 @@ describe('POST /api/ratings', () => {
 
     const borrowerRates = await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ borrowRequestId: requestId, score: 5 });
     expect(borrowerRates.status).toBe(201);
 
     const ownerRates = await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('Cookie', `accessToken=${owner.accessToken}`)
       .send({ borrowRequestId: requestId, score: 4 });
     expect(ownerRates.status).toBe(201);
     expect(ownerRates.body.rating.reviewerId).toBe(owner.userId);
@@ -59,7 +59,7 @@ describe('POST /api/ratings', () => {
 
       const res = await request(app)
         .post('/api/ratings')
-        .set('Authorization', `Bearer ${borrower.accessToken}`)
+        .set('Cookie', `accessToken=${borrower.accessToken}`)
         .send({ borrowRequestId: requestId, score: 5 });
 
       expect(res.status).toBe(409);
@@ -76,7 +76,7 @@ describe('POST /api/ratings', () => {
 
     const res = await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${stranger.accessToken}`)
+      .set('Cookie', `accessToken=${stranger.accessToken}`)
       .send({ borrowRequestId: requestId, score: 5 });
 
     expect(res.status).toBe(403);
@@ -91,7 +91,7 @@ describe('POST /api/ratings', () => {
 
     const res = await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ borrowRequestId: requestId, score: 3 });
 
     expect(res.status).toBe(409);
@@ -105,7 +105,7 @@ describe('POST /api/ratings', () => {
 
     const res = await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ borrowRequestId: requestId, score: 0 });
 
     expect(res.status).toBe(400);
@@ -119,7 +119,7 @@ describe('POST /api/ratings', () => {
 
     const res = await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ borrowRequestId: requestId, score: 6 });
 
     expect(res.status).toBe(400);
@@ -133,7 +133,7 @@ describe('POST /api/ratings', () => {
 
     const res = await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ borrowRequestId: requestId, score: 3.5 });
 
     expect(res.status).toBe(400);
@@ -147,7 +147,7 @@ describe('POST /api/ratings', () => {
 
     const res = await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ borrowRequestId: requestId, score: 5, comment: 'a'.repeat(501) });
 
     expect(res.status).toBe(400);
@@ -157,7 +157,7 @@ describe('POST /api/ratings', () => {
     const borrower = await registerAndLogin();
     const res = await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ borrowRequestId: '00000000-0000-0000-0000-000000000000', score: 5 });
     expect(res.status).toBe(404);
   });
@@ -180,7 +180,7 @@ describe('POST /api/ratings', () => {
 
     await request(app)
       .post('/api/ratings')
-      .set('Authorization', `Bearer ${borrower.accessToken}`)
+      .set('Cookie', `accessToken=${borrower.accessToken}`)
       .send({ borrowRequestId: requestId, score: 4 });
 
     const [ownerRow] = await db.select().from(users).where(eq(users.id, owner.userId));
