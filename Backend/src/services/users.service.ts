@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
-import { db } from '../config/db';
+import { db, DbTransaction } from '../config/db';
 import { items, refreshTokens, users } from '../db/schema';
 import { ConflictError, NotFoundError } from '../utils/errors';
 
@@ -165,4 +165,19 @@ export async function deleteAccount(userId: string): Promise<void> {
       .set({ revokedAt: new Date() })
       .where(and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt)));
   });
+}
+
+/**
+ * Admin-only suspension, called from services/reports.service.ts when a
+ * USER-targeted report is upheld. Accepts an optional transaction client so
+ * it can be combined atomically with marking the triggering report REVIEWED;
+ * standalone callers can omit it.
+ */
+export async function suspendUser(userId: string, tx: DbTransaction | typeof db = db): Promise<void> {
+  const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  await tx.update(users).set({ status: 'SUSPENDED' }).where(eq(users.id, userId));
 }

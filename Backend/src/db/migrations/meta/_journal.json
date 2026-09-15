@@ -57,6 +57,13 @@
       "when": 1789449240097,
       "tag": "0007_aromatic_jackpot",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789450056573,
+      "tag": "0008_busy_tombstone",
+      "breakpoints": true
     }
   ]
 }

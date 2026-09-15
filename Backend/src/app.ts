@@ -12,6 +12,7 @@ import requestsRoutes from './routes/requests.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import notificationsRoutes from './routes/notifications.routes';
 import ratingsRoutes from './routes/ratings.routes';
+import reportsRoutes from './routes/reports.routes';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { errorHandler } from './middleware/errorHandler';
 
@@ -35,6 +36,7 @@ export function createApp(): Application {
   app.use(dashboardRoutes);
   app.use(notificationsRoutes);
   app.use(ratingsRoutes);
+  app.use(reportsRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

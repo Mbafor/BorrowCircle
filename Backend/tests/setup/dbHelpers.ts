@@ -6,12 +6,14 @@ import {
   passwordResetTokens,
   ratings,
   refreshTokens,
+  reports,
   users,
 } from '../../src/db/schema';
 
 export async function clearDatabase(): Promise<void> {
   await db.delete(notifications);
   await db.delete(ratings);
+  await db.delete(reports);
   await db.delete(passwordResetTokens);
   await db.delete(refreshTokens);
   await db.delete(borrowRequests);
@@ -147,6 +149,32 @@ export async function insertRating(options: InsertRatingOptions): Promise<string
       revieweeId: options.revieweeId,
       score: options.score ?? 5,
       comment: options.comment ?? null,
+      ...(options.createdAt ? { createdAt: options.createdAt } : {}),
+    })
+    .returning();
+  return row.id;
+}
+
+export interface InsertReportOptions {
+  reporterId: string;
+  targetType?: 'ITEM' | 'USER';
+  targetId: string;
+  reason?: string;
+  note?: string | null;
+  status?: 'OPEN' | 'REVIEWED';
+  createdAt?: Date;
+}
+
+export async function insertReport(options: InsertReportOptions): Promise<string> {
+  const [row] = await db
+    .insert(reports)
+    .values({
+      reporterId: options.reporterId,
+      targetType: options.targetType ?? 'ITEM',
+      targetId: options.targetId,
+      reason: options.reason ?? 'Inappropriate content',
+      note: options.note ?? null,
+      status: options.status ?? 'OPEN',
       ...(options.createdAt ? { createdAt: options.createdAt } : {}),
     })
     .returning();

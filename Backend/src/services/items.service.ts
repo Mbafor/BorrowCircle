@@ -1,5 +1,5 @@
 import { and, asc, count, desc, eq, ilike, or, SQL, sql } from 'drizzle-orm';
-import { db } from '../config/db';
+import { db, DbTransaction } from '../config/db';
 import { items, users } from '../db/schema';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../utils/errors';
 import { BrowseItemsQuery, CreateItemBody, UpdateItemBody } from '../validation/items.validation';
@@ -10,10 +10,14 @@ export type ItemStatus = ItemRow['status'];
 
 const EDITABLE_STATUSES: ItemStatus[] = ['AVAILABLE', 'PAUSED'];
 const PUBLICLY_VISIBLE_STATUSES: ItemStatus[] = ['AVAILABLE', 'RESERVED', 'BORROWED', 'OVERDUE'];
+const TERMINAL_STATUSES_WITH_CASCADE: ItemStatus[] = ['CANCELLED', 'REMOVED'];
 
+// AVAILABLE/PAUSED can end in CANCELLED (owner-initiated, see updateItemStatus)
+// or REMOVED (admin-initiated, see adminRemoveItem) — same reachable-from set
+// and the same cascade, just a different terminal status and a different actor.
 const STATUS_TRANSITIONS: Partial<Record<ItemStatus, ItemStatus[]>> = {
-  AVAILABLE: ['PAUSED', 'CANCELLED'],
-  PAUSED: ['AVAILABLE', 'CANCELLED'],
+  AVAILABLE: ['PAUSED', 'CANCELLED', 'REMOVED'],
+  PAUSED: ['AVAILABLE', 'CANCELLED', 'REMOVED'],
 };
 
 export function isValidStatusTransition(from: ItemStatus, to: ItemStatus): boolean {
@@ -145,40 +149,71 @@ export async function deleteItem(itemId: string, ownerId: string): Promise<void>
  * transition is reachable from — see isValidStatusTransition), so PENDING
  * is the only request status the cascade needs to handle.
  */
+/**
+ * Core status-transition logic, shared by the owner-facing cancel/pause path
+ * and the admin-facing remove path — same lock-check-cascade transaction
+ * either way, just a different terminal status and (for the owner path) an
+ * ownership check. Requires an already-open transaction from the caller so
+ * it can be composed into a larger transaction (e.g. reports.service.ts
+ * marking the report REVIEWED in the same operation).
+ */
+async function changeItemStatus(
+  tx: DbTransaction,
+  itemId: string,
+  targetStatus: ItemStatus,
+  requireOwnerId?: string,
+): Promise<ItemRow> {
+  const [item] = await tx.select().from(items).where(eq(items.id, itemId)).for('update').limit(1);
+  if (!item) {
+    throw new NotFoundError('Item not found');
+  }
+
+  if (requireOwnerId !== undefined && item.ownerId !== requireOwnerId) {
+    throw new ForbiddenError('You do not have permission to modify this item');
+  }
+
+  if (!isValidStatusTransition(item.status, targetStatus)) {
+    throw new ConflictError(`Cannot change status from ${item.status} to ${targetStatus}`);
+  }
+
+  const [updated] = await tx
+    .update(items)
+    .set({ status: targetStatus })
+    .where(and(eq(items.id, itemId), eq(items.status, item.status)))
+    .returning();
+
+  if (!updated) {
+    // Lost a race with something else that changed this item's status
+    // between the read above and here.
+    const [current] = await tx.select().from(items).where(eq(items.id, itemId)).limit(1);
+    throw new ConflictError(`Cannot change status from ${current?.status ?? 'unknown'} to ${targetStatus}`);
+  }
+
+  if (TERMINAL_STATUSES_WITH_CASCADE.includes(targetStatus)) {
+    await cancelPendingRequestsForItem(tx, itemId, item.title);
+  }
+
+  return updated;
+}
+
 export async function updateItemStatus(itemId: string, ownerId: string, targetStatus: ItemStatus): Promise<ItemRow> {
-  return db.transaction(async (tx) => {
-    const [item] = await tx.select().from(items).where(eq(items.id, itemId)).for('update').limit(1);
-    if (!item) {
-      throw new NotFoundError('Item not found');
-    }
+  if (targetStatus === 'REMOVED') {
+    // REMOVED is admin-only (see adminRemoveItem). The owner-facing route's
+    // validation schema already excludes this value — this is a
+    // defense-in-depth guard, not the primary enforcement.
+    throw new ForbiddenError('Only an admin can remove a listing');
+  }
+  return db.transaction((tx) => changeItemStatus(tx, itemId, targetStatus, ownerId));
+}
 
-    if (item.ownerId !== ownerId) {
-      throw new ForbiddenError('You do not have permission to modify this item');
-    }
-
-    if (!isValidStatusTransition(item.status, targetStatus)) {
-      throw new ConflictError(`Cannot change status from ${item.status} to ${targetStatus}`);
-    }
-
-    const [updated] = await tx
-      .update(items)
-      .set({ status: targetStatus })
-      .where(and(eq(items.id, itemId), eq(items.status, item.status)))
-      .returning();
-
-    if (!updated) {
-      // Lost a race with something else that changed this item's status
-      // between the read above and here.
-      const [current] = await tx.select().from(items).where(eq(items.id, itemId)).limit(1);
-      throw new ConflictError(`Cannot change status from ${current?.status ?? 'unknown'} to ${targetStatus}`);
-    }
-
-    if (targetStatus === 'CANCELLED') {
-      await cancelPendingRequestsForItem(tx, itemId, item.title);
-    }
-
-    return updated;
-  });
+/**
+ * Admin-only removal of a reported listing. No ownership check — admin
+ * authorization is enforced by middleware/admin.middleware.ts at the route
+ * layer, not here. Takes the caller's transaction so it can be combined
+ * atomically with marking the triggering report REVIEWED.
+ */
+export async function adminRemoveItem(tx: DbTransaction, itemId: string): Promise<ItemRow> {
+  return changeItemStatus(tx, itemId, 'REMOVED');
 }
 
 export async function assertItemOwnership(itemId: string, ownerId: string): Promise<ItemRow> {
