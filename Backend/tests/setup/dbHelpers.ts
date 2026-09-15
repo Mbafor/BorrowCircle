@@ -1,8 +1,17 @@
 import { db } from '../../src/config/db';
-import { borrowRequests, items, notifications, passwordResetTokens, refreshTokens, users } from '../../src/db/schema';
+import {
+  borrowRequests,
+  items,
+  notifications,
+  passwordResetTokens,
+  ratings,
+  refreshTokens,
+  users,
+} from '../../src/db/schema';
 
 export async function clearDatabase(): Promise<void> {
   await db.delete(notifications);
+  await db.delete(ratings);
   await db.delete(passwordResetTokens);
   await db.delete(refreshTokens);
   await db.delete(borrowRequests);
@@ -89,7 +98,8 @@ export type NotificationType =
   | 'ITEM_CANCELLED'
   | 'HANDOVER_CONFIRMED'
   | 'RETURN_CONFIRMED'
-  | 'OVERDUE';
+  | 'OVERDUE'
+  | 'RATING_RECEIVED';
 
 export interface InsertNotificationOptions {
   userId: string;
@@ -113,6 +123,30 @@ export async function insertNotification(options: InsertNotificationOptions): Pr
       targetType: options.targetType ?? 'BORROW_REQUEST',
       targetId: options.targetId,
       isRead: options.isRead ?? false,
+      ...(options.createdAt ? { createdAt: options.createdAt } : {}),
+    })
+    .returning();
+  return row.id;
+}
+
+export interface InsertRatingOptions {
+  borrowRequestId: string;
+  reviewerId: string;
+  revieweeId: string;
+  score?: number;
+  comment?: string | null;
+  createdAt?: Date;
+}
+
+export async function insertRating(options: InsertRatingOptions): Promise<string> {
+  const [row] = await db
+    .insert(ratings)
+    .values({
+      borrowRequestId: options.borrowRequestId,
+      reviewerId: options.reviewerId,
+      revieweeId: options.revieweeId,
+      score: options.score ?? 5,
+      comment: options.comment ?? null,
       ...(options.createdAt ? { createdAt: options.createdAt } : {}),
     })
     .returning();

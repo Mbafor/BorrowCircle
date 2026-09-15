@@ -12,6 +12,7 @@ export const notificationTypeEnum = pgEnum('notification_type', [
   'HANDOVER_CONFIRMED',
   'RETURN_CONFIRMED',
   'OVERDUE',
+  'RATING_RECEIVED',
 ]);
 
 // A notification can be about either an item listing or a borrow request,
