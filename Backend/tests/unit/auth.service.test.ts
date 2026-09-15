@@ -59,15 +59,19 @@ describe('token utils', () => {
 
 describe('isAllowedEmailDomain', () => {
   it('accepts an email on the configured university domain', () => {
-    expect(isAllowedEmailDomain('student@knust.edu.gh')).toBe(true);
+    expect(isAllowedEmailDomain('student@st.knust.edu.gh')).toBe(true);
   });
 
   it('is case-insensitive on the domain', () => {
-    expect(isAllowedEmailDomain('Student@KNUST.EDU.GH')).toBe(true);
+    expect(isAllowedEmailDomain('Student@ST.KNUST.EDU.GH')).toBe(true);
   });
 
   it('rejects an email on a different domain', () => {
     expect(isAllowedEmailDomain('student@gmail.com')).toBe(false);
+  });
+
+  it('rejects the bare parent domain when the subdomain is required', () => {
+    expect(isAllowedEmailDomain('student@knust.edu.gh')).toBe(false);
   });
 
   it('rejects a malformed email with no domain', () => {
