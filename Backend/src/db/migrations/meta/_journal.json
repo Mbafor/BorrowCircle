@@ -64,6 +64,13 @@
       "when": 1789450056573,
       "tag": "0008_busy_tombstone",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789451911894,
+      "tag": "0009_foamy_ego",
+      "breakpoints": true
     }
   ]
 }

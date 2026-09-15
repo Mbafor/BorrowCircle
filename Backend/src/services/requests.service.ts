@@ -626,7 +626,7 @@ export async function confirmReturn(
   return db.transaction(async (tx) => {
     const [updated] = await tx
       .update(borrowRequests)
-      .set({ status: 'RETURNED' })
+      .set({ status: 'RETURNED', returnedAt: new Date() })
       .where(and(eq(borrowRequests.id, requestId), inArray(borrowRequests.status, RETURNABLE_STATUSES)))
       .returning();
 

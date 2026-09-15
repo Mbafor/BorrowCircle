@@ -144,7 +144,7 @@ export async function suspendReportedUser(reportId: string): Promise<ReportRow> 
   const report = await getOpenReportOrThrow(reportId, 'USER');
 
   return db.transaction(async (tx) => {
-    await usersService.suspendUser(report.targetId, tx);
+    await usersService.suspendUser(report.targetId, report.reason, tx);
 
     const [updatedReport] = await tx
       .update(reports)

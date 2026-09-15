@@ -35,6 +35,10 @@ export const borrowRequests = pgTable(
     declineReason: text('decline_reason'),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     lastOverdueNotifiedAt: timestamp('last_overdue_notified_at', { withTimezone: true }),
+    // Set by confirmReturn when the request transitions to RETURNED. Distinct
+    // from createdAt (request creation time) — needed to answer "completed in
+    // the last N days" questions accurately (Feature 13's admin stats).
+    returnedAt: timestamp('returned_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
