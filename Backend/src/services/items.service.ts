@@ -174,7 +174,7 @@ export async function updateItemStatus(itemId: string, ownerId: string, targetSt
     }
 
     if (targetStatus === 'CANCELLED') {
-      await cancelPendingRequestsForItem(tx, itemId);
+      await cancelPendingRequestsForItem(tx, itemId, item.title);
     }
 
     return updated;

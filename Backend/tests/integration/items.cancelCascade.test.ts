@@ -22,7 +22,7 @@ describe('cancelPendingRequestsForItem (direct call)', () => {
     const reqA = await insertBorrowRequest({ itemId, borrowerId: borrowerA.userId, status: 'PENDING' });
     const reqB = await insertBorrowRequest({ itemId, borrowerId: borrowerB.userId, status: 'PENDING' });
 
-    const count = await db.transaction((tx) => cancelPendingRequestsForItem(tx, itemId));
+    const count = await db.transaction((tx) => cancelPendingRequestsForItem(tx, itemId, 'Scientific Calculator'));
 
     expect(count).toBe(2);
     const [rowA] = await db.select().from(borrowRequests).where(eq(borrowRequests.id, reqA));
@@ -39,7 +39,7 @@ describe('cancelPendingRequestsForItem (direct call)', () => {
     const reqOnA = await insertBorrowRequest({ itemId: itemA, borrowerId: borrower.userId, status: 'PENDING' });
     const reqOnB = await insertBorrowRequest({ itemId: itemB, borrowerId: borrower.userId, status: 'PENDING' });
 
-    await db.transaction((tx) => cancelPendingRequestsForItem(tx, itemA));
+    await db.transaction((tx) => cancelPendingRequestsForItem(tx, itemA, 'A'));
 
     const [rowA] = await db.select().from(borrowRequests).where(eq(borrowRequests.id, reqOnA));
     const [rowB] = await db.select().from(borrowRequests).where(eq(borrowRequests.id, reqOnB));
@@ -55,7 +55,7 @@ describe('cancelPendingRequestsForItem (direct call)', () => {
     const pending = await insertBorrowRequest({ itemId, borrowerId: borrowerA.userId, status: 'PENDING' });
     const declined = await insertBorrowRequest({ itemId, borrowerId: borrowerB.userId, status: 'DECLINED' });
 
-    await db.transaction((tx) => cancelPendingRequestsForItem(tx, itemId));
+    await db.transaction((tx) => cancelPendingRequestsForItem(tx, itemId, 'Scientific Calculator'));
 
     const [pendingRow] = await db.select().from(borrowRequests).where(eq(borrowRequests.id, pending));
     const [declinedRow] = await db.select().from(borrowRequests).where(eq(borrowRequests.id, declined));
@@ -67,7 +67,7 @@ describe('cancelPendingRequestsForItem (direct call)', () => {
     const owner = await registerAndLogin();
     const itemId = await insertItem({ ownerId: owner.userId });
 
-    const count = await db.transaction((tx) => cancelPendingRequestsForItem(tx, itemId));
+    const count = await db.transaction((tx) => cancelPendingRequestsForItem(tx, itemId, 'Scientific Calculator'));
 
     expect(count).toBe(0);
   });
