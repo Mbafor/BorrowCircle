@@ -1,9 +1,12 @@
-import { and, desc, eq, inArray, lt, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, ne, or } from 'drizzle-orm';
 import { db, DbTransaction } from '../config/db';
 import { borrowRequests, items } from '../db/schema';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../utils/errors';
 import { generateHandoverCode } from '../utils/token';
+import { createNotification } from './notifications.service';
 import { CreateRequestBody, IncomingRequestsQuery } from '../validation/requests.validation';
+
+const OVERDUE_NOTIFICATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 export type BorrowRequestRow = typeof borrowRequests.$inferSelect;
 export type BorrowRequestStatus = BorrowRequestRow['status'];
@@ -91,8 +94,14 @@ export async function createRequest(borrowerId: string, input: CreateRequestBody
       })
       .returning();
 
-    // TODO(notifications): notify the item owner that a new borrow request
-    // was sent. Feature 10 will wire this up.
+    await createNotification({
+      userId: item.ownerId,
+      type: 'REQUEST_SENT',
+      title: 'New borrow request',
+      message: `You have a new request to borrow "${item.title}".`,
+      targetType: 'BORROW_REQUEST',
+      targetId: created.id,
+    });
 
     return toBorrowerView(created);
   } catch (err) {
@@ -169,8 +178,20 @@ export async function cancelRequest(requestId: string, borrowerId: string): Prom
         .where(and(eq(items.id, request.itemId), eq(items.status, 'RESERVED')));
     }
 
-    // TODO(notifications): notify the item owner that this request was
-    // cancelled. Feature 10 will wire this up.
+    const [item] = await tx.select().from(items).where(eq(items.id, request.itemId)).limit(1);
+    if (item) {
+      await createNotification(
+        {
+          userId: item.ownerId,
+          type: 'REQUEST_CANCELLED',
+          title: 'Request withdrawn',
+          message: `A borrower withdrew their request to borrow "${item.title}".`,
+          targetType: 'BORROW_REQUEST',
+          targetId: requestId,
+        },
+        tx,
+      );
+    }
 
     return toBorrowerView(updated);
   });
@@ -184,18 +205,33 @@ export async function cancelRequest(requestId: string, borrowerId: string): Prom
  * roll back together. PENDING is the only request status that can coexist
  * with a cancellable (AVAILABLE/PAUSED) item; see items.service.ts for why.
  */
-export async function cancelPendingRequestsForItem(tx: DbTransaction, itemId: string): Promise<number> {
+export async function cancelPendingRequestsForItem(
+  tx: DbTransaction,
+  itemId: string,
+  itemTitle: string,
+): Promise<number> {
   const cancelled = await tx
     .update(borrowRequests)
     .set({ status: 'CANCELLED' })
     .where(and(eq(borrowRequests.itemId, itemId), eq(borrowRequests.status, 'PENDING')))
-    .returning({ id: borrowRequests.id });
+    .returning({ id: borrowRequests.id, borrowerId: borrowRequests.borrowerId });
 
-  // TODO(notifications): notify each affected borrower that their request
-  // was cancelled because the lender withdrew the listing — this needs to
-  // read differently from a borrower cancelling their own request (the
-  // cancelRequest TODO above), since it's a different event from the
-  // borrower's point of view. Feature 10 will wire this up.
+  // Reads distinctly from cancelRequest's borrower-initiated
+  // REQUEST_CANCELLED above: this is the lender withdrawing the listing,
+  // not the borrower cancelling their own request.
+  for (const cancelledRequest of cancelled) {
+    await createNotification(
+      {
+        userId: cancelledRequest.borrowerId,
+        type: 'ITEM_CANCELLED',
+        title: 'Listing cancelled',
+        message: `The lender cancelled the listing "${itemTitle}", so your request was cancelled.`,
+        targetType: 'ITEM',
+        targetId: itemId,
+      },
+      tx,
+    );
+  }
 
   return cancelled.length;
 }
@@ -227,8 +263,22 @@ export async function expireStaleRequests(): Promise<number> {
       .set({ status: 'AVAILABLE' })
       .where(and(inArray(items.id, itemIds), eq(items.status, 'RESERVED')));
 
-    // TODO(notifications): notify each borrower that their pending request
-    // expired. Feature 10 will wire this up.
+    const itemRows = await tx.select({ id: items.id, title: items.title }).from(items).where(inArray(items.id, itemIds));
+    const itemTitleById = new Map(itemRows.map((row) => [row.id, row.title]));
+
+    for (const staleRequest of stale) {
+      await createNotification(
+        {
+          userId: staleRequest.borrowerId,
+          type: 'REQUEST_EXPIRED',
+          title: 'Request expired',
+          message: `Your request to borrow "${itemTitleById.get(staleRequest.itemId) ?? 'an item'}" expired because the owner didn't respond in time.`,
+          targetType: 'BORROW_REQUEST',
+          targetId: staleRequest.id,
+        },
+        tx,
+      );
+    }
 
     return staleIds.length;
   });
@@ -246,31 +296,71 @@ export async function flagOverdueRequests(): Promise<number> {
   const todayStr = new Date().toISOString().slice(0, 10);
 
   return db.transaction(async (tx) => {
-    const overdue = await tx
+    const newlyOverdue = await tx
       .select()
       .from(borrowRequests)
       .where(and(eq(borrowRequests.status, 'BORROWED'), lt(borrowRequests.returnDate, todayStr)));
 
-    if (overdue.length === 0) {
-      return 0;
+    if (newlyOverdue.length > 0) {
+      const overdueIds = newlyOverdue.map((r) => r.id);
+      await tx.update(borrowRequests).set({ status: 'OVERDUE' }).where(inArray(borrowRequests.id, overdueIds));
+
+      const itemIds = newlyOverdue.map((r) => r.itemId);
+      await tx
+        .update(items)
+        .set({ status: 'OVERDUE' })
+        .where(and(inArray(items.id, itemIds), eq(items.status, 'BORROWED')));
     }
 
-    const overdueIds = overdue.map((r) => r.id);
-    await tx.update(borrowRequests).set({ status: 'OVERDUE' }).where(inArray(borrowRequests.id, overdueIds));
+    // Repeating notification: every request currently OVERDUE (including
+    // ones just flagged above, whose last_overdue_notified_at is still
+    // null) that hasn't been notified in the last 24h gets exactly one
+    // notification now, and its timestamp is stamped so the next cron run
+    // within 24h skips it. Once a request reaches RETURNED it's no longer
+    // OVERDUE, so this WHERE clause excludes it automatically — no
+    // special-case needed.
+    const notifyCutoff = new Date(Date.now() - OVERDUE_NOTIFICATION_INTERVAL_MS);
+    const dueForNotification = await tx
+      .select({ request: borrowRequests, itemTitle: items.title, ownerId: items.ownerId })
+      .from(borrowRequests)
+      .innerJoin(items, eq(borrowRequests.itemId, items.id))
+      .where(
+        and(
+          eq(borrowRequests.status, 'OVERDUE'),
+          or(isNull(borrowRequests.lastOverdueNotifiedAt), lt(borrowRequests.lastOverdueNotifiedAt, notifyCutoff)),
+        ),
+      );
 
-    const itemIds = overdue.map((r) => r.itemId);
-    await tx
-      .update(items)
-      .set({ status: 'OVERDUE' })
-      .where(and(inArray(items.id, itemIds), eq(items.status, 'BORROWED')));
+    for (const row of dueForNotification) {
+      await createNotification(
+        {
+          userId: row.request.borrowerId,
+          type: 'OVERDUE',
+          title: 'Item overdue',
+          message: `"${row.itemTitle}" is overdue. Please return it as soon as possible.`,
+          targetType: 'BORROW_REQUEST',
+          targetId: row.request.id,
+        },
+        tx,
+      );
+      await createNotification(
+        {
+          userId: row.ownerId,
+          type: 'OVERDUE',
+          title: 'Borrowed item overdue',
+          message: `Your item "${row.itemTitle}" is overdue for return.`,
+          targetType: 'BORROW_REQUEST',
+          targetId: row.request.id,
+        },
+        tx,
+      );
+      await tx
+        .update(borrowRequests)
+        .set({ lastOverdueNotifiedAt: new Date() })
+        .where(eq(borrowRequests.id, row.request.id));
+    }
 
-    // TODO(notifications): Feature 10 should send a repeating daily
-    // notification (to the borrower and/or lender) until the item is
-    // returned. Not implemented here — this only sets the OVERDUE flag once
-    // per request; the repeat-notification schedule is out of scope for
-    // this feature.
-
-    return overdueIds.length;
+    return newlyOverdue.length;
   });
 }
 
@@ -354,15 +444,37 @@ export async function acceptRequest(requestId: string, ownerId: string): Promise
 
     await tx.update(items).set({ status: 'RESERVED' }).where(eq(items.id, item.id));
 
-    await tx
+    const autoDeclined = await tx
       .update(borrowRequests)
       .set({ status: 'DECLINED', declineReason: AUTO_DECLINE_REASON })
-      .where(and(eq(borrowRequests.itemId, item.id), eq(borrowRequests.status, 'PENDING'), ne(borrowRequests.id, requestId)));
+      .where(and(eq(borrowRequests.itemId, item.id), eq(borrowRequests.status, 'PENDING'), ne(borrowRequests.id, requestId)))
+      .returning({ id: borrowRequests.id, borrowerId: borrowRequests.borrowerId });
 
-    // TODO(notifications): notify the borrower that their request was
-    // accepted. Feature 10 will wire this up.
-    // TODO(notifications): notify each auto-declined borrower that the item
-    // was reserved by someone else. Feature 10 will wire this up.
+    await createNotification(
+      {
+        userId: accepted.borrowerId,
+        type: 'REQUEST_ACCEPTED',
+        title: 'Request accepted',
+        message: `Your request to borrow "${item.title}" was accepted. Check your pickup code.`,
+        targetType: 'BORROW_REQUEST',
+        targetId: accepted.id,
+      },
+      tx,
+    );
+
+    for (const declinedRequest of autoDeclined) {
+      await createNotification(
+        {
+          userId: declinedRequest.borrowerId,
+          type: 'REQUEST_DECLINED',
+          title: 'Request declined',
+          message: `"${item.title}" was reserved by another borrower, so your request was declined.`,
+          targetType: 'BORROW_REQUEST',
+          targetId: declinedRequest.id,
+        },
+        tx,
+      );
+    }
 
     return toOwnerView(accepted);
   });
@@ -398,8 +510,16 @@ export async function declineRequest(
     throw new ConflictError(`Cannot decline a request that is ${current?.status ?? 'no longer available'}`);
   }
 
-  // TODO(notifications): notify the borrower that their request was
-  // declined. Feature 10 will wire this up.
+  await createNotification({
+    userId: declined.borrowerId,
+    type: 'REQUEST_DECLINED',
+    title: 'Request declined',
+    message: reason
+      ? `Your request to borrow "${item.title}" was declined: ${reason}`
+      : `Your request to borrow "${item.title}" was declined.`,
+    targetType: 'BORROW_REQUEST',
+    targetId: declined.id,
+  });
 
   return toOwnerView(declined);
 }
@@ -447,6 +567,29 @@ export async function confirmPickup(
 
     await tx.update(items).set({ status: 'BORROWED' }).where(eq(items.id, item.id));
 
+    await createNotification(
+      {
+        userId: item.ownerId,
+        type: 'HANDOVER_CONFIRMED',
+        title: 'Pickup confirmed',
+        message: `You confirmed pickup for "${item.title}".`,
+        targetType: 'BORROW_REQUEST',
+        targetId: updated.id,
+      },
+      tx,
+    );
+    await createNotification(
+      {
+        userId: updated.borrowerId,
+        type: 'HANDOVER_CONFIRMED',
+        title: 'Pickup confirmed',
+        message: `Your pickup for "${item.title}" has been confirmed. Enjoy!`,
+        targetType: 'BORROW_REQUEST',
+        targetId: updated.id,
+      },
+      tx,
+    );
+
     return toOwnerView(updated);
   });
 }
@@ -478,6 +621,8 @@ export async function confirmReturn(
     throw new ValidationError({ returnCode: 'Incorrect code' });
   }
 
+  const [item] = await db.select().from(items).where(eq(items.id, request.itemId)).limit(1);
+
   return db.transaction(async (tx) => {
     const [updated] = await tx
       .update(borrowRequests)
@@ -491,6 +636,31 @@ export async function confirmReturn(
     }
 
     await tx.update(items).set({ status: 'AVAILABLE' }).where(eq(items.id, request.itemId));
+
+    if (item) {
+      await createNotification(
+        {
+          userId: item.ownerId,
+          type: 'RETURN_CONFIRMED',
+          title: 'Return confirmed',
+          message: `"${item.title}" was returned by the borrower.`,
+          targetType: 'BORROW_REQUEST',
+          targetId: updated.id,
+        },
+        tx,
+      );
+      await createNotification(
+        {
+          userId: borrowerId,
+          type: 'RETURN_CONFIRMED',
+          title: 'Return confirmed',
+          message: `Your return of "${item.title}" has been confirmed. Thanks!`,
+          targetType: 'BORROW_REQUEST',
+          targetId: updated.id,
+        },
+        tx,
+      );
+    }
 
     return toBorrowerView(updated);
   });

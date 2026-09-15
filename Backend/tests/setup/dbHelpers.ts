@@ -1,7 +1,8 @@
 import { db } from '../../src/config/db';
-import { borrowRequests, items, passwordResetTokens, refreshTokens, users } from '../../src/db/schema';
+import { borrowRequests, items, notifications, passwordResetTokens, refreshTokens, users } from '../../src/db/schema';
 
 export async function clearDatabase(): Promise<void> {
+  await db.delete(notifications);
   await db.delete(passwordResetTokens);
   await db.delete(refreshTokens);
   await db.delete(borrowRequests);
@@ -74,6 +75,45 @@ export async function insertBorrowRequest(options: InsertBorrowRequestOptions): 
       expiresAt: options.expiresAt ?? new Date(Date.now() + 48 * 60 * 60 * 1000),
       ...(options.pickupCode !== undefined ? { pickupCode: options.pickupCode } : {}),
       ...(options.returnCode !== undefined ? { returnCode: options.returnCode } : {}),
+    })
+    .returning();
+  return row.id;
+}
+
+export type NotificationType =
+  | 'REQUEST_SENT'
+  | 'REQUEST_ACCEPTED'
+  | 'REQUEST_DECLINED'
+  | 'REQUEST_CANCELLED'
+  | 'REQUEST_EXPIRED'
+  | 'ITEM_CANCELLED'
+  | 'HANDOVER_CONFIRMED'
+  | 'RETURN_CONFIRMED'
+  | 'OVERDUE';
+
+export interface InsertNotificationOptions {
+  userId: string;
+  type?: NotificationType;
+  title?: string;
+  message?: string;
+  targetType?: 'ITEM' | 'BORROW_REQUEST';
+  targetId: string;
+  isRead?: boolean;
+  createdAt?: Date;
+}
+
+export async function insertNotification(options: InsertNotificationOptions): Promise<string> {
+  const [row] = await db
+    .insert(notifications)
+    .values({
+      userId: options.userId,
+      type: options.type ?? 'REQUEST_SENT',
+      title: options.title ?? 'Test notification',
+      message: options.message ?? 'Test message',
+      targetType: options.targetType ?? 'BORROW_REQUEST',
+      targetId: options.targetId,
+      isRead: options.isRead ?? false,
+      ...(options.createdAt ? { createdAt: options.createdAt } : {}),
     })
     .returning();
   return row.id;

@@ -1,0 +1,1 @@
+ALTER TABLE "borrow_requests" ADD COLUMN "last_overdue_notified_at" timestamp with time zone;

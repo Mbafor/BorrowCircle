@@ -34,6 +34,7 @@ export const borrowRequests = pgTable(
     status: borrowRequestStatusEnum('status').notNull().default('PENDING'),
     declineReason: text('decline_reason'),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    lastOverdueNotifiedAt: timestamp('last_overdue_notified_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
