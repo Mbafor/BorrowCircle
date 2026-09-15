@@ -15,6 +15,7 @@ function fakeRequest(overrides: Partial<BorrowRequestRow> = {}): BorrowRequestRo
     expiresAt: new Date(),
     createdAt: new Date(),
     lastOverdueNotifiedAt: null,
+    returnedAt: null,
     ...overrides,
   };
 }

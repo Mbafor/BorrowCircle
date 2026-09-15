@@ -4,7 +4,7 @@ import { app } from '../setup/app';
 import { clearDatabase, insertBorrowRequest, insertItem, insertReport } from '../setup/dbHelpers';
 import { registerAndLogin, registerAndLoginAdmin } from '../setup/authHelpers';
 import { db } from '../../src/config/db';
-import { borrowRequests, items, reports, users } from '../../src/db/schema';
+import { borrowRequests, items, notifications, reports, users } from '../../src/db/schema';
 
 beforeEach(async () => {
   await clearDatabase();
@@ -34,6 +34,11 @@ describe('POST /api/reports/:id/remove-item', () => {
 
       const [requestRow] = await db.select().from(borrowRequests).where(eq(borrowRequests.id, requestId));
       expect(requestRow.status).toBe('CANCELLED');
+
+      // Feature 13: adminRemoveItem (shared with the direct admin-dashboard
+      // path) now notifies the owner too.
+      const ownerNotifs = await db.select().from(notifications).where(eq(notifications.userId, owner.userId));
+      expect(ownerNotifs.some((n) => n.type === 'ITEM_CANCELLED')).toBe(true);
     },
   );
 
@@ -120,6 +125,11 @@ describe('POST /api/reports/:id/suspend-user', () => {
 
     const [userRow] = await db.select().from(users).where(eq(users.id, target.userId));
     expect(userRow.status).toBe('SUSPENDED');
+
+    // Feature 13: suspendUser (shared with the direct admin-dashboard path)
+    // now notifies the suspended user too.
+    const targetNotifs = await db.select().from(notifications).where(eq(notifications.userId, target.userId));
+    expect(targetNotifs.some((n) => n.type === 'ACCOUNT_SUSPENDED')).toBe(true);
   });
 
   it('is rejected on an ITEM-targeted report', async () => {

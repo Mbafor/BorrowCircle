@@ -2,6 +2,9 @@ import { and, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
 import { db, DbTransaction } from '../config/db';
 import { items, refreshTokens, users } from '../db/schema';
 import { ConflictError, NotFoundError } from '../utils/errors';
+import { createNotification } from './notifications.service';
+
+export type UserRow = typeof users.$inferSelect;
 
 export interface ProfileItem {
   id: string;
@@ -168,16 +171,57 @@ export async function deleteAccount(userId: string): Promise<void> {
 }
 
 /**
- * Admin-only suspension, called from services/reports.service.ts when a
- * USER-targeted report is upheld. Accepts an optional transaction client so
- * it can be combined atomically with marking the triggering report REVIEWED;
- * standalone callers can omit it.
+ * Admin suspension — called both from services/reports.service.ts (a
+ * USER-targeted report is upheld, passing the report's reason) and directly
+ * from services/admin.service.ts (an admin acts with no report involved).
+ * Accepts an optional transaction client so it can be combined atomically
+ * with marking a triggering report REVIEWED; standalone callers can omit it.
+ * Rejects a user who is already SUSPENDED or DELETED (DELETED is terminal).
  */
-export async function suspendUser(userId: string, tx: DbTransaction | typeof db = db): Promise<void> {
+export async function suspendUser(
+  userId: string,
+  reason: string,
+  tx: DbTransaction | typeof db = db,
+): Promise<UserRow> {
   const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!user) {
     throw new NotFoundError('User not found');
   }
+  if (user.status !== 'ACTIVE') {
+    throw new ConflictError(`Cannot suspend a user with status ${user.status}`);
+  }
 
-  await tx.update(users).set({ status: 'SUSPENDED' }).where(eq(users.id, userId));
+  const [updated] = await tx.update(users).set({ status: 'SUSPENDED' }).where(eq(users.id, userId)).returning();
+
+  await createNotification(
+    {
+      userId,
+      type: 'ACCOUNT_SUSPENDED',
+      title: 'Account suspended',
+      message: `Your account has been suspended: ${reason}`,
+      targetType: 'USER',
+      targetId: userId,
+    },
+    tx,
+  );
+
+  return updated;
+}
+
+/**
+ * Reverses a suspension. Only reachable from SUSPENDED — an ACTIVE user has
+ * nothing to reactivate, and DELETED is terminal per Feature 2 (deleteAccount)
+ * and must never be reinstated through this path.
+ */
+export async function reactivateUser(userId: string, tx: DbTransaction | typeof db = db): Promise<UserRow> {
+  const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+  if (user.status !== 'SUSPENDED') {
+    throw new ConflictError(`Cannot reactivate a user with status ${user.status}`);
+  }
+
+  const [updated] = await tx.update(users).set({ status: 'ACTIVE' }).where(eq(users.id, userId)).returning();
+  return updated;
 }

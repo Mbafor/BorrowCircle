@@ -71,6 +71,8 @@ export interface InsertBorrowRequestOptions {
   expiresAt?: Date;
   pickupCode?: string | null;
   returnCode?: string | null;
+  returnedAt?: Date | null;
+  createdAt?: Date;
 }
 
 export async function insertBorrowRequest(options: InsertBorrowRequestOptions): Promise<string> {
@@ -86,6 +88,8 @@ export async function insertBorrowRequest(options: InsertBorrowRequestOptions): 
       expiresAt: options.expiresAt ?? new Date(Date.now() + 48 * 60 * 60 * 1000),
       ...(options.pickupCode !== undefined ? { pickupCode: options.pickupCode } : {}),
       ...(options.returnCode !== undefined ? { returnCode: options.returnCode } : {}),
+      ...(options.returnedAt !== undefined ? { returnedAt: options.returnedAt } : {}),
+      ...(options.createdAt ? { createdAt: options.createdAt } : {}),
     })
     .returning();
   return row.id;
@@ -175,6 +179,45 @@ export async function insertReport(options: InsertReportOptions): Promise<string
       reason: options.reason ?? 'Inappropriate content',
       note: options.note ?? null,
       status: options.status ?? 'OPEN',
+      ...(options.createdAt ? { createdAt: options.createdAt } : {}),
+    })
+    .returning();
+  return row.id;
+}
+
+export interface InsertUserOptions {
+  fullName?: string;
+  email?: string;
+  phoneNumber?: string;
+  location?: string;
+  role?: 'USER' | 'ADMIN';
+  status?: 'ACTIVE' | 'SUSPENDED' | 'DELETED';
+  averageRating?: string;
+  createdAt?: Date;
+}
+
+let userSeedCounter = 0;
+
+/**
+ * Seeds a user row directly (bypassing registration), for admin tests that
+ * need a user in a status registration can never produce (SUSPENDED,
+ * DELETED). The password hash is a placeholder — these users are never
+ * logged in as.
+ */
+export async function insertUser(options: InsertUserOptions = {}): Promise<string> {
+  userSeedCounter += 1;
+  const seq = userSeedCounter;
+  const [row] = await db
+    .insert(users)
+    .values({
+      fullName: options.fullName ?? `Seed User ${seq}`,
+      email: options.email ?? `seed.user.${seq}@knust.edu.gh`,
+      passwordHash: 'not-a-real-hash',
+      phoneNumber: options.phoneNumber ?? `05500${String(seq).padStart(5, '0')}`,
+      location: options.location ?? 'Unity Hall',
+      role: options.role ?? 'USER',
+      status: options.status ?? 'ACTIVE',
+      ...(options.averageRating !== undefined ? { averageRating: options.averageRating } : {}),
       ...(options.createdAt ? { createdAt: options.createdAt } : {}),
     })
     .returning();

@@ -13,12 +13,14 @@ export const notificationTypeEnum = pgEnum('notification_type', [
   'RETURN_CONFIRMED',
   'OVERDUE',
   'RATING_RECEIVED',
+  'ACCOUNT_SUSPENDED',
 ]);
 
-// A notification can be about either an item listing or a borrow request,
-// so target_id is a plain uuid rather than a foreign key to either table —
-// there's no single column that could carry both relationships cleanly.
-export const notificationTargetTypeEnum = pgEnum('notification_target_type', ['ITEM', 'BORROW_REQUEST']);
+// A notification can be about an item listing, a borrow request, or (for
+// ACCOUNT_SUSPENDED) the recipient's own account — so target_id is a plain
+// uuid rather than a foreign key to any one of those tables — there's no
+// single column that could carry all three relationships cleanly.
+export const notificationTargetTypeEnum = pgEnum('notification_target_type', ['ITEM', 'BORROW_REQUEST', 'USER']);
 
 export const notifications = pgTable(
   'notifications',

@@ -4,6 +4,7 @@ import { items, users } from '../db/schema';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../utils/errors';
 import { BrowseItemsQuery, CreateItemBody, UpdateItemBody } from '../validation/items.validation';
 import { cancelPendingRequestsForItem } from './requests.service';
+import { createNotification } from './notifications.service';
 
 export type ItemRow = typeof items.$inferSelect;
 export type ItemStatus = ItemRow['status'];
@@ -207,13 +208,30 @@ export async function updateItemStatus(itemId: string, ownerId: string, targetSt
 }
 
 /**
- * Admin-only removal of a reported listing. No ownership check — admin
- * authorization is enforced by middleware/admin.middleware.ts at the route
- * layer, not here. Takes the caller's transaction so it can be combined
- * atomically with marking the triggering report REVIEWED.
+ * Admin-only removal of a listing — called both from a report's remove-item
+ * action and directly from services/admin.service.ts. No ownership check —
+ * admin authorization is enforced by middleware/admin.middleware.ts at the
+ * route layer, not here. Takes the caller's transaction so it can be
+ * combined atomically with marking a triggering report REVIEWED. Notifies
+ * the owner; any borrower with a PENDING request is separately notified by
+ * the cascade inside changeItemStatus.
  */
 export async function adminRemoveItem(tx: DbTransaction, itemId: string): Promise<ItemRow> {
-  return changeItemStatus(tx, itemId, 'REMOVED');
+  const updated = await changeItemStatus(tx, itemId, 'REMOVED');
+
+  await createNotification(
+    {
+      userId: updated.ownerId,
+      type: 'ITEM_CANCELLED',
+      title: 'Listing removed',
+      message: `Your listing "${updated.title}" was removed by an admin.`,
+      targetType: 'ITEM',
+      targetId: updated.id,
+    },
+    tx,
+  );
+
+  return updated;
 }
 
 export async function assertItemOwnership(itemId: string, ownerId: string): Promise<ItemRow> {
