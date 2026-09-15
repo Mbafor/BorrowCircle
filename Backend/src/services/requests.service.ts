@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, lt, ne } from 'drizzle-orm';
-import { db } from '../config/db';
+import { db, DbTransaction } from '../config/db';
 import { borrowRequests, items } from '../db/schema';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../utils/errors';
 import { generateHandoverCode } from '../utils/token';
@@ -174,6 +174,30 @@ export async function cancelRequest(requestId: string, borrowerId: string): Prom
 
     return toBorrowerView(updated);
   });
+}
+
+/**
+ * Cancels every PENDING request on an item, as part of the caller's own
+ * transaction (e.g. items.service.ts's updateItemStatus, when a lender
+ * cancels the listing) — accepts that transaction's `tx` client rather than
+ * starting its own, so the item's status change and this cascade commit or
+ * roll back together. PENDING is the only request status that can coexist
+ * with a cancellable (AVAILABLE/PAUSED) item; see items.service.ts for why.
+ */
+export async function cancelPendingRequestsForItem(tx: DbTransaction, itemId: string): Promise<number> {
+  const cancelled = await tx
+    .update(borrowRequests)
+    .set({ status: 'CANCELLED' })
+    .where(and(eq(borrowRequests.itemId, itemId), eq(borrowRequests.status, 'PENDING')))
+    .returning({ id: borrowRequests.id });
+
+  // TODO(notifications): notify each affected borrower that their request
+  // was cancelled because the lender withdrew the listing — this needs to
+  // read differently from a borrower cancelling their own request (the
+  // cancelRequest TODO above), since it's a different event from the
+  // borrower's point of view. Feature 10 will wire this up.
+
+  return cancelled.length;
 }
 
 /**

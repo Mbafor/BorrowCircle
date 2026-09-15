@@ -3,6 +3,7 @@ import { db } from '../config/db';
 import { items, users } from '../db/schema';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../utils/errors';
 import { BrowseItemsQuery, CreateItemBody, UpdateItemBody } from '../validation/items.validation';
+import { cancelPendingRequestsForItem } from './requests.service';
 
 export type ItemRow = typeof items.$inferSelect;
 export type ItemStatus = ItemRow['status'];
@@ -133,19 +134,51 @@ export async function deleteItem(itemId: string, ownerId: string): Promise<void>
   await db.delete(items).where(eq(items.id, itemId));
 }
 
+/**
+ * Changes an item's status, cascading a cancellation to every PENDING
+ * request on it in the same transaction (same locking pattern as Feature
+ * 6's acceptRequest: lock the item row with SELECT ... FOR UPDATE, re-check
+ * the transition against the locked row, then a conditional UPDATE as a
+ * race backstop). Pausing/reactivating never touches requests — only a
+ * transition to CANCELLED does. ACCEPTED/BORROWED/OVERDUE requests can't
+ * exist on an item that's AVAILABLE or PAUSED (the only statuses this
+ * transition is reachable from — see isValidStatusTransition), so PENDING
+ * is the only request status the cascade needs to handle.
+ */
 export async function updateItemStatus(itemId: string, ownerId: string, targetStatus: ItemStatus): Promise<ItemRow> {
-  const item = await getOwnedItemOrThrow(itemId, ownerId);
+  return db.transaction(async (tx) => {
+    const [item] = await tx.select().from(items).where(eq(items.id, itemId)).for('update').limit(1);
+    if (!item) {
+      throw new NotFoundError('Item not found');
+    }
 
-  if (!isValidStatusTransition(item.status, targetStatus)) {
-    throw new ConflictError(`Cannot change status from ${item.status} to ${targetStatus}`);
-  }
+    if (item.ownerId !== ownerId) {
+      throw new ForbiddenError('You do not have permission to modify this item');
+    }
 
-  // TODO(borrow-requests): when a lender cancels an item, any PENDING or
-  // ACCEPTED borrow request on it must also be auto-cancelled and the
-  // borrower notified. Not implemented — borrow_requests doesn't exist yet.
+    if (!isValidStatusTransition(item.status, targetStatus)) {
+      throw new ConflictError(`Cannot change status from ${item.status} to ${targetStatus}`);
+    }
 
-  const [updated] = await db.update(items).set({ status: targetStatus }).where(eq(items.id, itemId)).returning();
-  return updated;
+    const [updated] = await tx
+      .update(items)
+      .set({ status: targetStatus })
+      .where(and(eq(items.id, itemId), eq(items.status, item.status)))
+      .returning();
+
+    if (!updated) {
+      // Lost a race with something else that changed this item's status
+      // between the read above and here.
+      const [current] = await tx.select().from(items).where(eq(items.id, itemId)).limit(1);
+      throw new ConflictError(`Cannot change status from ${current?.status ?? 'unknown'} to ${targetStatus}`);
+    }
+
+    if (targetStatus === 'CANCELLED') {
+      await cancelPendingRequestsForItem(tx, itemId);
+    }
+
+    return updated;
+  });
 }
 
 export async function assertItemOwnership(itemId: string, ownerId: string): Promise<ItemRow> {
