@@ -11,7 +11,7 @@ export function validRegisterPayload(overrides: Partial<Record<string, string>> 
   const suffix = uniqueSuffix();
   return {
     fullName: 'Ama Mensah',
-    email: `student${suffix}@knust.edu.gh`,
+    email: `student${suffix}@st.knust.edu.gh`,
     password: 'Str0ngPass!',
     location: 'Republic Hall',
     phoneNumber: `0${suffix.slice(-9).padStart(9, '1')}`,
